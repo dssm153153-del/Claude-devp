@@ -1018,6 +1018,9 @@
         숫자 쉼표가 핵심·서브 토큰을 "200만"처럼 쪼개던 것도 막는다(검색어·결과 제목 양쪽에서 "1200만"으로 맞춤).
         (3) 프롬프트 A V18이 "수능 앞둔" 같은 짧은 한정어와 권유형 마무리("~챙겨 보면 어떨까요?")를
         허용하면서, "앞둔"·"앞두고"·"보면"·"~까요"가 키워드로 잡히지 않도록 일반어·어미 목록에 추가.
+        (4) 프롬프트 파일 맨 앞의 검토용 참고 메모("> [참고 메모 — 실행 규칙 아님]" 블록, 첫 "---" 줄
+        앞)는 복사할 때 빼고 "# 제목" 줄과 본문만 Claude에 보낸다(strip_prompt_memo). 메모가 없는
+        프롬프트 파일은 그대로 보낸다.
 """
 
 import os
@@ -4216,12 +4219,32 @@ def export_history_xlsx():
 # [영역 4] 파일 유틸
 # ════════════════════════════════════════════════════════════
 
+PROMPT_MEMO_MARKER = "[참고 메모"   # [Ver10.02] 프롬프트 파일 맨 앞 검토용 메모 블록의 표시
+
+
+def strip_prompt_memo(text: str) -> str:
+    """[Ver10.02 신규] 프롬프트 파일 맨 앞의 검토용 참고 메모를 뺀다.
+    프롬프트 A·B는 "# 제목" 줄 → "> [참고 메모 — 실행 규칙 아님] …" 인용 블록 → "---" 줄 → 본문
+    순서로 되어 있다. 메모는 사람이 프롬프트를 검토·변경할 때만 보는 것이라 Claude에 보낼 필요가
+    없으므로, 첫 "---" 줄 앞에 메모 표시가 있을 때만 그 앞부분을 "# 제목" 줄만 남기고 덜어낸다.
+    메모가 없는 파일(프롬프트 0·C·D 등)은 그대로 돌려준다."""
+    m = re.search(r"^---[ \t]*$", text, re.M)
+    if not m:
+        return text
+    head = text[:m.start()]
+    if PROMPT_MEMO_MARKER not in head:
+        return text
+    title = next((ln for ln in head.splitlines() if ln.startswith("# ")), "")
+    body = text[m.end():].lstrip("\n")
+    return (title + "\n\n" + body) if title else body
+
+
 def load_prompt_file(filename: str, prompt_dir: str) -> str:
     path = os.path.join(prompt_dir, filename)
     if not os.path.exists(path):
         return ""
     with open(path, "r", encoding="utf-8") as f:
-        return f.read().strip()
+        return strip_prompt_memo(f.read().strip())   # [Ver10.02] 검토용 메모는 빼고 보낸다
 
 
 def safe_filename(title: str) -> str:
