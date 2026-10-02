@@ -1008,6 +1008,16 @@
         ("만성질환")로도 일치로 본다(관련 글이 "만성질환 관리"로 쓰이는 경우를 놓치지 않기 위함).
         (3) 경쟁 예상에 "조합 수요 미확인"(프롬프트 A V17 신규 값)을 추가. 기존 코드도 "수요 미확인"
         부분일치로 오류 없이 받았지만 두 값이 구분되지 않았다.
+    59. [Ver10.02, 2026-10-02] 프롬프트 A V18·B V13과 맞물림 점검 결과 반영.
+        (1) 제목을 첫 쉼표로 나누는 곳(앞구·뒷구 분리, 핵심·서브 키워드 추출, 제목 점검의 쉼표 개수)이
+        "1,200만 원"처럼 숫자 안의 천 단위 쉼표에서도 잘리던 문제 수정 — 숫자 사이 쉼표는 구분 쉼표로
+        보지 않는다(_TITLE_COMMA_RE). 프롬프트 A V18도 제목 숫자에 천 단위 쉼표를 쓰지 않도록 했다.
+        (2) 직접 입력으로 확정한 제목의 "핵심 키워드"를 앞 핵심구가 아니라 뒷 구절로 정한다. 후보를
+        고르면 핵심키워드가 롱테일 축(뒷부분)인데 직접 입력만 앞구가 들어가, 같은 축이 핵심DB keyword와
+        자기잠식 확인에 글마다 다르게 기록됐다. 쉼표가 없으면 예전처럼 앞 핵심구를 쓴다.
+        숫자 쉼표가 핵심·서브 토큰을 "200만"처럼 쪼개던 것도 막는다(검색어·결과 제목 양쪽에서 "1200만"으로 맞춤).
+        (3) 프롬프트 A V18이 "수능 앞둔" 같은 짧은 한정어와 권유형 마무리("~챙겨 보면 어떨까요?")를
+        허용하면서, "앞둔"·"앞두고"·"보면"·"~까요"가 키워드로 잡히지 않도록 일반어·어미 목록에 추가.
 """
 
 import os
@@ -1608,7 +1618,7 @@ PRECHECK_MID_MIN = 3            # 강이 없어도 중이 이 값 이상이면 "
 # 핵심어 후보에서 제외할 동사·의문형 어미(제목에 자주 붙는 "발견되면", "정해졌을까" 등)
 PRECHECK_VERBISH = ("되면", "오면", "하면", "이면", "려면", "을까", "ㄹ까", "는데", "한다", "된다",
                     "했다", "였다", "하나", "되나", "할까", "될까", "있나", "되는", "하는", "하고",
-                    "으로", "에서", "까지", "나오면", "정해졌")
+                    "으로", "에서", "까지", "나오면", "정해졌", "까요")   # [Ver10.02] 권유형 "어떨까요"
 # 핵심·서브 키워드에서 뺄 변화·의문 표현(제목에서 "변화 한마디"나 물음을 이루는 일반어)
 PRECHECK_CHANGE_WORDS = {"기한", "추진", "확대", "개편", "도입", "시행", "강화", "개선", "변경", "신설",
                          "폐지", "인하", "인상", "연장", "달라질", "달라지", "어떻게", "무엇", "말고",
@@ -1616,7 +1626,7 @@ PRECHECK_CHANGE_WORDS = {"기한", "추진", "확대", "개편", "도입", "시�
 # [Ver9.29] 프롬프트 A V17 — 제목 앞부분이 "메인 + 서브 + 변화"로 길어져 일반어가 핵심 키워드(3점)로 잡히는
 # 것을 막는다. 어떤 정책 글에나 흔한 말이라 이 단어만 일치한 글은 관련 글이 아니다.
 PRECHECK_GENERIC_WORDS = {"관리", "지역", "최대", "최소", "기존", "얼마나", "늘까", "늘어날까", "줄까",
-                          "대상", "여부"}
+                          "대상", "여부", "앞둔", "앞두고", "보면"}   # [Ver10.02] 짧은 한정어("수능 앞둔")·권유형 "~해 보면"
 # 수집량 선택: (전체 제목 최대, 앞구 최대, 뒷구 최대, 스크롤 최대 횟수)
 PRECHECK_COLLECT_LEVELS = {"표준": (20, 30, 20, 10), "많이": (30, 50, 30, 14), "최대": (50, 100, 50, 15)}
 PRECHECK_SIMILAR_RATIO = 0.75   # 이 이상이면 "유사 제목"으로 센다
@@ -2938,12 +2948,16 @@ def policy_count_integrated_search_results(source: str):
         return 0, False
 
 
+# [Ver10.02] 제목의 구분 쉼표. "1,200만 원"처럼 숫자 사이에 낀 천 단위 쉼표는 구분 쉼표로 보지 않는다.
+_TITLE_COMMA_RE = re.compile(r"(?<!\d)[,，、]|[,，、](?!\d)")
+
+
 def policy_split_title_front(title: str) -> str:
     """[Ver9.19 신규, Ver9.29 주석 갱신] 제목의 "앞 핵심구"를 자른다. 프롬프트A V17 제목 구조가
     "[메인 + 서브 + 변화], [롱테일 + 세부사항]"이므로(V16은 "[본문 핵심 키워드 + 변화], [서브 키워드]")
     첫 콤마 앞이 앞 핵심구다. 콤마가 없으면 앞 30자 안쪽(어절 단위)으로 자른다."""
     t = (title or "").strip().rstrip("?？!！. ").strip()
-    m = re.search(r"[,，、]", t)
+    m = _TITLE_COMMA_RE.search(t)
     if m:
         front = t[:m.start()].strip()
         if len(front) >= 4:
@@ -2958,8 +2972,9 @@ def policy_split_title_front(title: str) -> str:
 def policy_resolve_keyword_for_title(title: str, candidates: list) -> tuple:
     """[Ver9.19 신규] 제목에 맞는 "핵심 키워드"를 정한다.
     - 제목이 A 후보 제목과 같으면(공백 무시) 그 후보의 핵심키워드
-    - 아니면 제목의 앞 핵심구(첫 콤마 앞)
-    반환: (keyword, source, cand_index) — source는 "candidate"/"front"/"".
+    - 아니면 제목의 뒷 구절(첫 콤마 뒤) — [Ver10.02] 후보의 핵심키워드와 같은 롱테일 축으로 맞춘다
+    - 쉼표가 없어 뒷 구절이 없으면 앞 핵심구
+    반환: (keyword, source, cand_index) — source는 "candidate"/"back"/"front"/"".
     프롬프트A V16·V17에서 후보의 핵심키워드는 뒷부분(서브·롱테일) 축이고, 중복체크·
     핵심DB(keyword)·A의 자기잠식 확인이 이 값을 쓴다."""
     t = (title or "").strip()
@@ -2969,6 +2984,9 @@ def policy_resolve_keyword_for_title(title: str, candidates: list) -> tuple:
     for i, c in enumerate(candidates or []):
         if c.get("title") and norm(c["title"]) == norm(t) and c.get("core_keyword"):
             return c["core_keyword"].strip(), "candidate", i
+    back = policy_split_title_back(t)
+    if back:
+        return back, "back", -1
     return policy_split_title_front(t), "front", -1
 
 
@@ -2976,7 +2994,7 @@ def policy_split_title_back(title: str) -> str:
     """[Ver9.26 신규] 제목의 첫 쉼표 뒤 구절(뒷구). 쉼표가 없거나 4자 미만이면 빈 문자열.
     앞구(policy_split_title_front)는 선점용이라 검색이 거의 없고 실제 유입은 뒷구가 받는다."""
     t = (title or "").strip().rstrip("?？!！. ").strip()
-    m = re.search(r"[,，、]", t)
+    m = _TITLE_COMMA_RE.search(t)
     if not m:
         return ""
     back = t[m.end():].strip()
@@ -3160,7 +3178,8 @@ def policy_relevance_tokens(phrase: str) -> list:
     "신고가"는 "신고"로 줄어들어 "신고"가 들어간 글과 매칭된다(주식 글이
     섞이는 문제는 다른 토큰 일치 수 기준으로 걸러진다)."""
     out = []
-    for tok in re.split(r"[\s,，、·/()\[\]?？!！~\-–—…\"'“”‘’]+", phrase or ""):
+    phrase = re.sub(r"(?<=\d)[,，](?=\d)", "", phrase or "")   # [Ver10.02] "1,200만" → "1200만"
+    for tok in re.split(r"[\s,，、·/()\[\]?？!！~\-–—…\"'“”‘’]+", phrase):
         tok = tok.strip()
         if not tok:
             continue
@@ -3225,7 +3244,7 @@ def policy_title_keywords(title: str) -> tuple:
     "관리"·"지역" 같은 일반어(PRECHECK_GENERIC_WORDS)는 제외한다. 쉼표가 없으면 전체가 핵심
     키워드다. 앞부분이 변화 표현뿐이라 핵심 키워드가 비면 뒷부분 앞쪽 2개를 핵심으로 삼는다."""
     t = (title or "").strip().rstrip("?？!！. ").strip()
-    m = re.search(r"[,，、]", t)
+    m = _TITLE_COMMA_RE.search(t)
     front, back = (t[:m.start()], t[m.end():]) if m else (t, "")
     core = policy_clean_tokens(front)
     # 서브 키워드 중 핵심 키워드와 같거나 포개지는 것(예: 핵심 "이물"과 서브 "이물질")은 이중 계산을
@@ -3243,6 +3262,7 @@ def policy_score_text(text: str, core: list, sub: list) -> tuple:
     def _hit(tok):
         # [Ver9.29] "만성질환자"처럼 대상군을 뜻하는 "~자" 키워드는 "만성질환"으로 쓴 글도 일치로 본다.
         return tok in text or (len(tok) >= 4 and tok.endswith("자") and tok[:-1] in text)
+    text = re.sub(r"(?<=\d)[,，](?=\d)", "", text or "")   # [Ver10.02] 결과 제목의 "1,200만"도 "1200만"으로 맞춤
     mc = [c for c in core if _hit(c)]
     ms = [x for x in sub if _hit(x)]
     m = len(mc) + len(ms)
@@ -4267,7 +4287,7 @@ def validate_title(title: str) -> dict:
             f"표현을 더 녹일 수 있는지 확인하세요.")
 
     # [Ver9.26 신규] 프롬프트A V16 구조 점검: "앞부분, 뒷부분" 쉼표 1개, 앞부분 30자 이내.
-    commas = len(re.findall(r"[,，]", title))
+    commas = len(_TITLE_COMMA_RE.findall(title))   # [Ver10.02] 숫자 속 천 단위 쉼표 제외
     if title and commas == 0:
         warnings.append("쉼표가 없습니다 — 프롬프트A V16 제목은 '앞부분, 뒷부분' 쉼표 1개 구조입니다 "
                         "(제목정밀검색의 앞구는 앞 30자로 대체됩니다).")
@@ -4434,7 +4454,7 @@ def _wm_output_path(src_path: str, target_folder: str, keep_original: bool) -> s
 class App(tk.Tk):
     def __init__(self):
         super().__init__()
-        self.title("정책뉴스 수집한 후 Claude로 각색 및 인포그래픽 설계하는 프로그램_2026-10-01_Ver 10.01")
+        self.title("정책뉴스 수집한 후 Claude로 각색 및 인포그래픽 설계하는 프로그램_2026-10-02_Ver 10.02")
 
         # 창 크기·중앙 배치
         # 화면 해상도에 비례해서 키우되(화면이 작으면 같이 작아짐),
@@ -7678,7 +7698,7 @@ class App(tk.Tk):
         self.core_keyword_var.set(kw)
         self._core_kw_auto = kw
         self._log_collect(f"[제목 변경 감지{(' · ' + reason) if reason else ''}] 핵심 키워드 갱신: "
-                          f"'{cur}' → '{kw}' ({'후보 ' + str(idx + 1) if source == 'candidate' else '앞 핵심구'})")
+                          f"'{cur}' → '{kw}' ({'후보 ' + str(idx + 1) if source == 'candidate' else '뒷 구절' if source == 'back' else '앞 핵심구'})")
         self._append_precheck_log({"event": "title_changed", "from": self.confirmed_title,
                                    "to": title, "keyword": kw})
 
