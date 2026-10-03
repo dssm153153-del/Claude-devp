@@ -1797,6 +1797,32 @@ v7.21 (2026-09-22): 🐛 parse_value_judgment_title_candidates() 헤더
                      게시판 값이 유지된다. 항목 신설용 set_posting_board()
                      추가. 이미 발행한 서비스의 게시판 값은 별도 반영
                      스크립트(Naver_blog_게시판_DB_반영.py)로 채운다.
+2026-10-03 Ver9.30:  같은 블로그에 올리는 정책뉴스 프로그램(Ver10.02)·정책뉴스
+                     프롬프트(A V18)의 제목 체계를 이식. 프롬프트는 가치판단 V8·
+                     통합 V7·초안작성 V6·2차각색(Claude) V3·인포그래픽 V3로 함께
+                     갱신됨.
+                     (1) 제목 사전체크를 전체 제목 1회 건수 판정에서 3단계(전체
+                     제목 → 첫 쉼표 앞 "앞구" → 첫 쉼표 뒤 "뒷구") + 결과 제목별
+                     강·중·약 점수 판정으로 교체(tchk_* 함수 — 정책뉴스 policy_*
+                     함수를 이름만 바꿔 그대로 이식, 상수도 같음). 후보를 추출해도
+                     자동으로 돌리지 않고 [▶ 후보 사전체크 실행] 버튼으로만 실행한다
+                     (후보당 1~2분). 직접 입력 제목도 따로 사전체크할 수 있고,
+                     [📋 사전체크 결과 복사]로 수집 목록 전체를 Claude에 붙여넣을 수
+                     있다. 후보·직접 입력 줄에 앞구·뒷구 검색 버튼 추가.
+                     (2) validate_title(): 35~60자, 쉼표 1개, 앞부분 30자 이내,
+                     숫자 속 천 단위 쉼표 제외로 갱신하고, 물음표 종결 필수 경고를
+                     없앴다(가치판단 V8부터 물음표는 선택). 직접 입력 제목을 확정할
+                     때도 이 점검 결과를 보여 준다.
+                     (3) 가치판단 후보의 "롱테일 축:"·"선택 근거:" 줄을 읽어 둔다
+                     (선택 근거는 후보를 고르면 상태줄에 표시).
+                     (4) 가치판단·통합 프롬프트 복사본에 [발행 이력 — 자기잠식
+                     확인용] 블록을 붙인다: 복지로 확정 제목 + 키워드 엑셀 + 통합
+                     키워드 엑셀(정책뉴스 등 같은 블로그 글 포함)의 등록 제목.
+                     (5) 프롬프트 파일 맨 앞의 검토용 참고 메모("[참고 메모" 표시가
+                     있는 첫 "---" 앞 블록)는 복사할 때 빼고 "# 제목"과 본문만 보낸다.
+                     (6) 오류 처리 람다가 except 블록 밖에서 사라진 예외 변수 e를
+                     참조하던 곳 2군데(시작 시 상태 갱신 실패, 중복 정책 재검사
+                     실패)를 e=e로 묶어, 오류 안내 대신 NameError가 나던 문제 수정.
 """
 
 import sys
@@ -1809,6 +1835,7 @@ import difflib
 import bisect
 import math
 import re
+import html
 import queue
 import datetime
 import threading
@@ -2710,6 +2737,25 @@ def get_research_api_keys() -> dict:
 #   파일로 관리한다. 메모장으로 자유롭게 고치면 프로그램 재시작 없이
 #   다음 호출부터 바로 반영된다(매번 파일을 새로 읽으므로).
 # ============================================================
+PROMPT_MEMO_MARKER = "[참고 메모"   # [Ver9.30] 프롬프트 파일 맨 앞 검토용 메모 블록의 표시
+
+
+def strip_prompt_memo(text: str) -> str:
+    """[Ver9.30 신규 — 정책뉴스 Ver10.02와 같은 함수] 프롬프트 파일 맨 앞의 검토용 참고 메모를 뺀다.
+    "# 제목" 줄 → "> [참고 메모 — 실행 규칙 아님] …" 인용 블록 → "---" 줄 → 본문 순서로 된 파일에서,
+    첫 "---" 줄 앞에 메모 표시가 있을 때만 그 앞부분을 "# 제목" 줄만 남기고 덜어낸다.
+    메모가 없는 파일은 그대로 돌려준다."""
+    m = re.search(r"^---[ \t]*$", text, re.M)
+    if not m:
+        return text
+    head = text[:m.start()]
+    if PROMPT_MEMO_MARKER not in head:
+        return text
+    title = next((ln for ln in head.splitlines() if ln.startswith("# ")), "")
+    body = text[m.end():].lstrip("\n")
+    return (title + "\n\n" + body) if title else body
+
+
 def load_prompt_file(filename: str, prompt_dir: str) -> str:
     if not filename:
         return ""
@@ -2717,7 +2763,7 @@ def load_prompt_file(filename: str, prompt_dir: str) -> str:
     if not os.path.exists(path):
         return ""
     with open(path, "r", encoding="utf-8") as f:
-        return f.read().strip()
+        return strip_prompt_memo(f.read().strip())   # [Ver9.30] 검토용 메모는 빼고 보낸다
 
 
 def get_prompt_value_judgment() -> str:
@@ -3087,18 +3133,17 @@ def create_hub_service(serv_nm: str, raw_text: str) -> str:
 # 지금까지 이 기능이 아예 없었음). 복지로는 서비스 1건 = 소재 1개라
 # 정책뉴스의 "복합 소재형 75자 예외"에 해당하는 개념이 없으므로 60자를
 # 예외 없는 절대 상한으로만 둔다.
-TITLE_MIN_LEN = 50
+TITLE_MIN_LEN = 35   # [Ver9.30] 가치판단 V8(정책뉴스 A V18과 같은 제목 구조) — 50→35
 TITLE_MAX_LEN = 60
 HOOK_WORDS = ["주목", "눈길", "관심", "충격", "화제", "이슈", "꿀팁", "대박"]
 
 
 def validate_title(title: str) -> dict:
-    """복지로 초안작성 프롬프트 V3 [작성 규칙] 기준 제목 검증.
-    반환: {length, ok_length, hook_words(발견된 호객형 수식어 목록),
-           num_count(제목 안 숫자 개수), warnings(경고 메시지 목록)}
-    완벽한 문법 분석·숫자 판별은 아니고, 명백한 실수만 잡아내는 가벼운
-    점검이다(예: "재산이~34세" 같은 범위 표현도 숫자 2개로 잡힐 수 있어,
-    실제로 서로 다른 화두인지는 사람이 최종 판단해야 한다)."""
+    """[Ver9.30 갱신] 가치판단 V8 [제목 형식 규칙] 기준 제목 점검(정책뉴스 Ver10.02와 같은 기준).
+    제목 = "[메인 + 서브 + 핵심 포인트], [롱테일 + 세부사항]" — 35~60자(60자 절대 상한), 쉼표
+    1개, 앞부분 30자 이내, 핵심 숫자 1개. 물음표 종결은 이제 선택이라 경고하지 않는다.
+    반환: {length, ok_length, hook_words, num_count, warnings}
+    완벽한 분석은 아니고 명백한 실수만 잡는 가벼운 점검이다."""
     title = (title or "").strip()
     length = len(title)
     warnings = []
@@ -3110,8 +3155,22 @@ def validate_title(title: str) -> dict:
             f"반드시 줄이세요.")
     elif length and length < TITLE_MIN_LEN:
         warnings.append(
-            f"제목이 {length}자로 50자 미만입니다 — 핵심 키워드나 "
-            f"롱테일 표현을 더 녹일 수 있는지 확인하세요.")
+            f"제목이 {length}자로 35자 미만입니다 — 앞부분(메인·서브)이나 뒷부분(롱테일)이 "
+            f"빠졌는지 확인하세요.")
+
+    commas = len(_TITLE_COMMA_RE.findall(title))   # 숫자 속 천 단위 쉼표는 세지 않는다
+    if title and commas == 0:
+        warnings.append("쉼표가 없습니다 — 제목은 '앞부분, 뒷부분' 쉼표 1개 구조입니다 "
+                        "(제목 사전체크의 앞구는 앞 30자로 대체됩니다).")
+    elif commas >= 2:
+        warnings.append(f"쉼표가 {commas}개입니다 — 첫 쉼표 앞만 앞구, 뒤 전체가 뒷구로 "
+                        f"검색됩니다(쉼표 1개 권장).")
+    if commas >= 1:
+        _front_len = len(tchk_split_title_front(title))
+        if _front_len > 30:
+            warnings.append(f"앞부분(첫 쉼표 앞)이 {_front_len}자입니다 — 30자 이내를 권장합니다.")
+    if re.search(r"\d[,，]\d", title):
+        warnings.append("숫자에 천 단위 쉼표가 있습니다 — 제목에서는 '1200만 원'처럼 쉼표 없이 쓰세요.")
 
     number_groups = re.findall(r'\d+(?:[.,]\d+)?', title)
     num_count = len(number_groups)
@@ -3126,8 +3185,8 @@ def validate_title(title: str) -> dict:
         warnings.append(f"호객형 수식어 발견: {', '.join(found_hooks)} — "
                          f"검색 가중치가 높은 자리를 낭비할 수 있습니다.")
 
-    if title and not title.endswith("?"):
-        warnings.append("제목이 물음표(?)로 끝나지 않습니다 — 질문형 문장인지 확인하세요.")
+    if "?" in title.rstrip("?").rstrip():
+        warnings.append("물음표가 제목 중간에 있습니다 — 물음표는 맨 끝 의문형 어미에만 붙이세요.")
 
     return {
         "length":     length,
@@ -4801,6 +4860,490 @@ def kw_count_integrated_search_results(source: str):
         return 0, False
 
 
+# ============================================================
+# [Ver9.30 신규] 제목 사전체크 3단계(전체 제목 → 앞 핵심구 → 뒷 구절) — 정책뉴스
+# 프로그램 Ver10.02의 제목정밀검색 함수(policy_*)를 이름만 tchk_로 바꿔 그대로 이식했다.
+# 두 프로그램이 같은 블로그에 올리므로 판정 기준(점수·등급·숫자 속 쉼표 처리)을 맞춘다.
+# 한쪽을 고치면 다른 쪽도 같이 고친다. 상수 값도 정책뉴스와 같다.
+# ============================================================
+# [Ver9.19 신규] 제목 후보 제목정밀검색(2단계) 기준값 — 실사용하며 조정할 것.
+# 블로그탭 결과는 스크롤로 계속 로드되므로 "건수"는 로드된 범위 기준이다.
+PRECHECK_FULL_MAX = 20          # [Ver9.20] 전체 제목 검색에서 수집할 최대 결과 수
+PRECHECK_FRONT_MAX = 30         # [Ver9.20] 앞 핵심구 검색에서 수집할 최대 결과 수
+PRECHECK_SCROLL_ROUNDS = 10     # [Ver9.20] 스크롤 최대 횟수(모듈은 15)
+PRECHECK_FRONT_DENSE_MAX = 25   # 앞 핵심구 관련 글이 이 값을 넘으면 "관련 글 다수" 참고 표시(경고 아님)
+PRECHECK_FULL_MIN_HITS = 2      # 전체 제목 검색: 관련 글로 볼 최소 토큰 일치 수(Ver9.26: 3→2)
+PRECHECK_PARTIAL_HEAD = 3       # [Ver9.26] 부분일치 판정에 쓰는 앞쪽 핵심어 개수
+PRECHECK_PARTIAL_MIN = 3        # [Ver9.26] 관련 0건이어도 부분일치가 이 값 이상이면 ❌가 아니라 ⚠️
+PRECHECK_BACK_MAX = 20          # [Ver9.26] 뒷구 검색에서 수집할 최대 결과 수
+# [Ver9.28] 역할 기반 가중치 판정 — 제목 앞부분 토큰=핵심 키워드, 뒷부분 토큰=서브 키워드.
+PRECHECK_W_CORE = 3             # 결과 제목에 핵심 키워드가 있을 때 개당 점수
+PRECHECK_W_SUB = 1              # 서브 키워드 개당 점수
+PRECHECK_BONUS_MORE = 1         # 2개 이상 일치 시 1개 추가할 때마다 더하는 점수
+PRECHECK_BONUS_MORE_CAP = 4     # 추가 가산은 일치 개수 4개까지(+3)
+PRECHECK_BONUS_CROSS = 2        # 핵심·서브 키워드가 함께 일치하면 더하는 점수
+PRECHECK_TIER_STRONG = 6        # 강: 6점 이상
+PRECHECK_TIER_MID = 3           # 중: 3~5점, 약: 1~2점, 무관: 0점
+PRECHECK_MID_MIN = 3            # 강이 없어도 중이 이 값 이상이면 "관련 글 그룹 있음"
+# 핵심어 후보에서 제외할 동사·의문형 어미(제목에 자주 붙는 "발견되면", "정해졌을까" 등)
+PRECHECK_VERBISH = ("되면", "오면", "하면", "이면", "려면", "을까", "ㄹ까", "는데", "한다", "된다",
+                    "했다", "였다", "하나", "되나", "할까", "될까", "있나", "되는", "하는", "하고",
+                    "으로", "에서", "까지", "나오면", "정해졌", "까요")   # [Ver10.02] 권유형 "어떨까요"
+# 핵심·서브 키워드에서 뺄 변화·의문 표현(제목에서 "변화 한마디"나 물음을 이루는 일반어)
+PRECHECK_CHANGE_WORDS = {"기한", "추진", "확대", "개편", "도입", "시행", "강화", "개선", "변경", "신설",
+                         "폐지", "인하", "인상", "연장", "달라질", "달라지", "어떻게", "무엇", "말고",
+                         "따로", "뭐가", "다수", "이전", "이후", "언제", "어디"}
+# [Ver9.29] 프롬프트 A V17 — 제목 앞부분이 "메인 + 서브 + 변화"로 길어져 일반어가 핵심 키워드(3점)로 잡히는
+# 것을 막는다. 어떤 정책 글에나 흔한 말이라 이 단어만 일치한 글은 관련 글이 아니다.
+PRECHECK_GENERIC_WORDS = {"관리", "지역", "최대", "최소", "기존", "얼마나", "늘까", "늘어날까", "줄까",
+                          "대상", "여부", "앞둔", "앞두고", "보면"}   # [Ver10.02] 짧은 한정어("수능 앞둔")·권유형 "~해 보면"
+# 수집량 선택: (전체 제목 최대, 앞구 최대, 뒷구 최대, 스크롤 최대 횟수)
+PRECHECK_COLLECT_LEVELS = {"표준": (20, 30, 20, 10), "많이": (30, 50, 30, 14), "최대": (50, 100, 50, 15)}
+PRECHECK_SIMILAR_RATIO = 0.75   # 이 이상이면 "유사 제목"으로 센다
+# 조사가 붙으면 다른 뜻(주식용어 등)으로 읽히는 복합어
+PRECHECK_AMBIGUOUS_TERMS = ["신고가"]
+# 관련 여부 판정에서 제외할 일반어(검색 잡음을 만드는 말)
+PRECHECK_STOP_WORDS = {
+    "어떻게", "되나", "될까", "언제", "언제까지", "무엇", "뭐가", "달라질까",
+    "있나", "없나", "어디", "얼마", "정리", "총정리", "방법", "알아보기",
+    "되는", "하는", "있을까", "가능할까", "인가", "할까", "경우", "이후", "이전",
+    "달라지나", "바뀌나", "어떤", "어떨까", "정말", "다시",
+}
+
+
+# [Ver10.02] 제목의 구분 쉼표. "1,200만 원"처럼 숫자 사이에 낀 천 단위 쉼표는 구분 쉼표로 보지 않는다.
+_TITLE_COMMA_RE = re.compile(r"(?<!\d)[,，、]|[,，、](?!\d)")
+
+def tchk_split_title_front(title: str) -> str:
+    """[Ver9.19 신규, Ver9.29 주석 갱신] 제목의 "앞 핵심구"를 자른다. 프롬프트A V17 제목 구조가
+    "[메인 + 서브 + 변화], [롱테일 + 세부사항]"이므로(V16은 "[본문 핵심 키워드 + 변화], [서브 키워드]")
+    첫 콤마 앞이 앞 핵심구다. 콤마가 없으면 앞 30자 안쪽(어절 단위)으로 자른다."""
+    t = (title or "").strip().rstrip("?？!！. ").strip()
+    m = _TITLE_COMMA_RE.search(t)
+    if m:
+        front = t[:m.start()].strip()
+        if len(front) >= 4:
+            return front
+    if len(t) <= 30:
+        return t
+    cut = t[:30]
+    sp = cut.rfind(" ")
+    return (cut[:sp] if sp >= 8 else cut).strip()
+
+def tchk_split_title_back(title: str) -> str:
+    """[Ver9.26 신규] 제목의 첫 쉼표 뒤 구절(뒷구). 쉼표가 없거나 4자 미만이면 빈 문자열.
+    앞구(tchk_split_title_front)는 선점용이라 검색이 거의 없고 실제 유입은 뒷구가 받는다."""
+    t = (title or "").strip().rstrip("?？!！. ").strip()
+    m = _TITLE_COMMA_RE.search(t)
+    if not m:
+        return ""
+    back = t[m.end():].strip()
+    return back if len(back) >= 4 else ""
+
+def tchk_extract_result_items(source: str) -> list:
+    """[Ver9.20 신규, Ver9.27 수정] 블로그tab 결과 HTML에서 결과 항목을 등장 순서대로 뽑는다.
+    Naver_blog_rank_module의 rank_extract_result_items()와 같은 방식이다 —
+    항목 컨테이너(data-template-id="ugcItem") 단위로 나누고, 블로그명
+    (articleSourceJSX_title)과 제목 링크(data-heatmap-target=".*blg" +
+    headline1 span)를 정규식으로 읽는다. 티스토리 등 다른 플랫폼 글도 같은 목록에
+    순서대로 섞여 나오므로 도메인으로 거르지 않는다.
+    정규식이 안 맞는 카드(화면 구조가 바뀐 경우)는 카드 안 첫 링크 텍스트(6자 이상,
+    블로그명 제외)를 제목으로 대체 추출한다. [Ver9.27] 그래도 제목을 못 찾은 카드는 버리지
+    않고 "(제목 추출 실패)"와 카드 원문 일부를 담아 남긴다(자료를 걸러내지 않기 위함).
+    반환: [{"title","link","source_name","text","anchors","parse_failed","raw"}, ...]"""
+    def _strip(x):
+        return re.sub(r"<[^>]+>", "", x or "").strip()
+
+    try:
+        text = (source or "").replace("\\/", "/")
+        items = []
+        for block in text.split('data-template-id="ugcItem"')[1:]:
+            m_name = re.search(r'articleSourceJSX_title"[^>]*><span[^>]*>(.*?)</span>', block, re.S)
+            m_title = re.search(
+                r'href="([^"]+)"[^>]*data-heatmap-target="\.[a-z]*blg"[^>]*>'
+                r'<span[^>]*sds-comps-text-type-headline1[^>]*>(.*?)</span>',
+                block, re.S)
+            source_name = html.unescape(_strip(m_name.group(1))) if m_name else ""
+            link, title = "", ""
+            if m_title:
+                link = html.unescape(m_title.group(1))
+                title = re.sub(r"\s+", " ", html.unescape(_strip(m_title.group(2)))).strip()
+            else:
+                for href, inner in re.findall(r'<a\b[^>]*href="([^"]+)"[^>]*>(.*?)</a>', block[:8000], re.S):
+                    t = re.sub(r"\s+", " ", html.unescape(_strip(inner))).strip()
+                    if len(t) >= 6 and t != source_name:
+                        link, title = html.unescape(href), t
+                        break
+            if not title:
+                raw = re.sub(r"\s+", " ", html.unescape(_strip(block[:6000]))).strip()[:200]
+                items.append({"title": "(제목 추출 실패)", "link": "", "source_name": source_name,
+                              "text": raw, "anchors": [], "parse_failed": True, "raw": raw})
+                continue
+            items.append({"title": title, "link": link, "source_name": source_name,
+                          "text": title, "anchors": [title], "parse_failed": False, "raw": ""})
+        return items
+    except Exception as e:
+        print(f"❌ [제목 사전체크] 결과 항목 추출 오류: {e}")
+        return []
+
+def tchk_check_captcha(driver):
+    """[Ver9.20 신규, Ver9.24 재작성] 캡차/차단 감지. 반환: (차단 여부, 사유)
+    순위 모듈의 rank_check_naver_captcha()는 모듈 안에서 호출된 적이 없고, 페이지 소스
+    전체에서 문구를 찾아 정상 페이지에도 걸릴 수 있어(스크립트에 "잠시 후 다시" 등이
+    들어 있음) 그대로 쓰지 않는다. 판단 순서:
+      1) 주소가 로그인 페이지/captcha면 차단
+      2) 결과 카드(ugcItem)가 있으면 정상
+      3) 카드가 없을 때만, 화면에 보이는 글자(innerText)에서 캡차 고유 문구를 찾는다"""
+    try:
+        url = driver.current_url or ""
+        if "nid.naver.com/nidlogin" in url:
+            return True, "로그인 페이지로 이동됨"
+        if "captcha" in url.lower():
+            return True, "주소에 captcha 포함"
+        page = driver.page_source or ""
+        if 'data-template-id="ugcItem"' in page:
+            return False, ""
+        try:
+            visible = driver.execute_script("return document.body ? document.body.innerText : ''") or ""
+        except Exception:
+            visible = ""
+        for kw in ["자동입력 방지", "로봇이 아님을 확인", "비정상적인 접근", "일시적으로 제한", "보안문자"]:
+            if kw in visible:
+                return True, f"화면에 '{kw}' 문구"
+        if len(visible.strip()) < 400 and "잠시 후 다시" in visible:
+            return True, "짧은 오류 화면에 '잠시 후 다시' 문구"
+    except Exception:
+        pass
+    return False, ""
+
+def tchk_collect_blog_results(driver, keyword: str, max_results: int = 30, progress_fn=None,
+                                info=None, rounds=None):
+    """[Ver9.20 신규, Ver9.27 수정] 블로그탭을 따옴표 없이 검색해 결과 항목을 스크롤하며 모은다
+    (rank_selenium_collect_results()의 수집 로직 이식). 페이지 구조상 결과는 스크롤할수록
+    더 로드되므로 max_results건이 모이거나 새 항목이 두 번 연속 안 늘면 멈춘다.
+    progress_fn(수집 건수)가 있으면 수집이 늘 때마다 호출한다(진행 표시용).
+    info(dict)를 주면 수집 종료 사유("stop": cap/end/rounds/red), 제목 추출 실패 건수
+    ("parse_failed")를 채우고, 차단으로 판정했을 때는 사유·주소·페이지 제목·화면 문구 일부도 채운다.
+    반환: (items, status) — status: "ok" / "red"(빨간 안내문) / "captcha"(차단 의심) / "error"."""
+    rounds = rounds or PRECHECK_SCROLL_ROUNDS
+    try:
+        url = ("https://search.naver.com/search.naver?ssc=tab.blog.all&sm=tab_jum"
+               f"&query={quote(keyword)}")
+        driver.get(url)
+        time.sleep(random.uniform(1.5, 3.0))
+        blocked, reason = tchk_check_captcha(driver)
+        if blocked:
+            # 일시적인 화면일 수 있어 잠시 뒤 한 번만 다시 열어 확인한다.
+            time.sleep(random.uniform(4.0, 6.0))
+            driver.get(url)
+            time.sleep(random.uniform(2.0, 3.5))
+            blocked, reason = tchk_check_captcha(driver)
+        if blocked:
+            if info is not None:
+                info["reason"] = reason
+                try:
+                    info["url"] = driver.current_url
+                    info["title"] = driver.title
+                    info["visible"] = (driver.execute_script(
+                        "return document.body ? document.body.innerText : ''") or "").strip()[:150]
+                except Exception:
+                    pass
+            return [], "captcha"
+        if "에 대한 검색결과가 없습니다" in (driver.page_source or ""):
+            if info is not None:
+                info["stop"] = "red"
+            return [], "red"
+
+        cumulative, seen = [], set()
+
+        def _collect():
+            new = 0
+            for it in tchk_extract_result_items(driver.page_source):
+                key = it.get("link") or ("raw:" + it.get("raw", "")[:120]) or it.get("title")
+                if not key or key in seen:
+                    continue
+                seen.add(key)
+                cumulative.append(it)
+                new += 1
+            return new
+
+        def _progress():
+            if progress_fn:
+                try:
+                    progress_fn(min(len(cumulative), max_results))
+                except Exception:
+                    pass
+
+        _collect()
+        _progress()
+        no_change = 0
+        stop = "rounds"
+        for _ in range(rounds):
+            if len(cumulative) >= max_results:
+                stop = "cap"
+                break
+            driver.execute_script("window.scrollTo(0, document.body.scrollHeight);")
+            time.sleep(random.uniform(1.2, 2.2))
+            if _collect() == 0:
+                no_change += 1
+                if no_change >= 2:
+                    stop = "end"
+                    break
+            else:
+                no_change = 0
+                _progress()
+        else:
+            if len(cumulative) >= max_results:
+                stop = "cap"
+        result = cumulative[:max_results]
+        if info is not None:
+            info["stop"] = stop
+            info["parse_failed"] = sum(1 for it in result if it.get("parse_failed"))
+        return result, "ok"
+    except Exception as e:
+        print(f"❌ [제목 사전체크] '{keyword}' 검색 오류: {e}")
+        return [], "error"
+
+_PRECHECK_JOSA = ["에서", "으로", "에게", "까지", "부터", "보다", "처럼",
+                  "는", "은", "이", "가", "을", "를", "도", "에", "의", "과", "와", "로"]
+
+def tchk_relevance_tokens(phrase: str) -> list:
+    """[Ver9.19 신규] 관련 글 판정용 핵심 토큰. 공백·구두점으로 나눈 뒤 조사를
+    떼고(2글자 이상 남을 때만), 일반어(PRECHECK_STOP_WORDS)와 1글자 토큰은 뺀다.
+    "신고가"는 "신고"로 줄어들어 "신고"가 들어간 글과 매칭된다(주식 글이
+    섞이는 문제는 다른 토큰 일치 수 기준으로 걸러진다)."""
+    out = []
+    phrase = re.sub(r"(?<=\d)[,，](?=\d)", "", phrase or "")   # [Ver10.02] "1,200만" → "1200만"
+    for tok in re.split(r"[\s,，、·/()\[\]?？!！~\-–—…\"'“”‘’]+", phrase):
+        tok = tok.strip()
+        if not tok:
+            continue
+        for j in _PRECHECK_JOSA:
+            if tok.endswith(j) and len(tok) - len(j) >= 2:
+                tok = tok[:-len(j)]
+                break
+        if len(tok) < 2 or tok in PRECHECK_STOP_WORDS or tok in PRECHECK_GENERIC_WORDS:
+            continue
+        if tok not in out:
+            out.append(tok)
+    return out
+
+def tchk_clean_tokens(phrase: str) -> list:
+    """[Ver9.28 신규] 키워드로 쓸 토큰. 조사를 뗀 토큰에서 동사·의문형 어미("발견되면", "정해졌을까" 등)와
+    변화·의문 표현(PRECHECK_CHANGE_WORDS)을 빼고, "수거하" 같은 동사 어간은 "수거"로 줄인다."""
+    out = []
+    for t in tchk_relevance_tokens(phrase):
+        if len(t) >= 3 and (t.endswith(PRECHECK_VERBISH) or t.endswith("까")):
+            continue
+        if len(t) >= 3 and t.endswith("하"):
+            t = t[:-1]
+        if t in PRECHECK_CHANGE_WORDS or t in PRECHECK_GENERIC_WORDS or len(t) < 2:
+            continue
+        if t not in out:
+            out.append(t)
+    return out
+
+def tchk_title_keywords(title: str) -> tuple:
+    """[Ver9.28 신규, Ver9.29 수정] 제목에서 (핵심 키워드 목록, 서브 키워드 목록)을 뽑는다. 첫 쉼표 앞부분의
+    토큰(프롬프트 A V17의 메인·서브)이 핵심 키워드, 뒷부분(롱테일) 토큰이 서브 키워드(앞부분에 이미 있는 것은 제외)다.
+    "관리"·"지역" 같은 일반어(PRECHECK_GENERIC_WORDS)는 제외한다. 쉼표가 없으면 전체가 핵심
+    키워드다. 앞부분이 변화 표현뿐이라 핵심 키워드가 비면 뒷부분 앞쪽 2개를 핵심으로 삼는다."""
+    t = (title or "").strip().rstrip("?？!！. ").strip()
+    m = _TITLE_COMMA_RE.search(t)
+    front, back = (t[:m.start()], t[m.end():]) if m else (t, "")
+    core = tchk_clean_tokens(front)
+    # 서브 키워드 중 핵심 키워드와 같거나 포개지는 것(예: 핵심 "이물"과 서브 "이물질")은 이중 계산을
+    # 막기 위해 뺀다.
+    sub = [x for x in tchk_clean_tokens(back)
+           if x not in core and not any(c in x or x in c for c in core)]
+    if not core:
+        core, sub = sub[:2], sub[2:]
+    return core, sub
+
+def tchk_score_text(text: str, core: list, sub: list) -> tuple:
+    """[Ver9.28 신규] 결과 제목 하나의 점수. 핵심 키워드 개당 3점, 서브 키워드 개당 1점, 2개 이상 일치하면
+    1개 추가할 때마다 +1(4개까지), 핵심·서브가 함께 일치하면 +2. 반환: (점수, 일치한 핵심, 일치한 서브)."""
+    def _hit(tok):
+        # [Ver9.29] "만성질환자"처럼 대상군을 뜻하는 "~자" 키워드는 "만성질환"으로 쓴 글도 일치로 본다.
+        return tok in text or (len(tok) >= 4 and tok.endswith("자") and tok[:-1] in text)
+    text = re.sub(r"(?<=\d)[,，](?=\d)", "", text or "")   # [Ver10.02] 결과 제목의 "1,200만"도 "1200만"으로 맞춤
+    mc = [c for c in core if _hit(c)]
+    ms = [x for x in sub if _hit(x)]
+    m = len(mc) + len(ms)
+    sc = PRECHECK_W_CORE * len(mc) + PRECHECK_W_SUB * len(ms)
+    if m >= 2:
+        sc += PRECHECK_BONUS_MORE * (min(m, PRECHECK_BONUS_MORE_CAP) - 1)
+    if mc and ms:
+        sc += PRECHECK_BONUS_CROSS
+    return sc, mc, ms
+
+def tchk_classify_items(items: list, title: str) -> dict:
+    """[Ver9.27 신규, Ver9.28 재작성] 각 결과 제목에 점수·등급·일치 키워드를 매긴다(items에 score/tier/
+    matched 기록). 제목의 핵심 키워드(높게)·서브 키워드(낮게)·복수 일치 가산으로 강(6점 이상)·중(3~5)·
+    약(1~2)·무관(0)을 나눈다. 목록에서 항목을 걸러내지 않고 표시만 붙인다.
+    반환: {"core": [...], "sub": [...], "counts": {"strong","mid","weak","none"}}"""
+    core, sub = tchk_title_keywords(title)
+    counts = {"strong": 0, "mid": 0, "weak": 0, "none": 0}
+    for it in items:
+        text = it.get("text") or it.get("title", "")
+        sc, mc, ms = tchk_score_text(text, core, sub)
+        tier = ("strong" if sc >= PRECHECK_TIER_STRONG else "mid" if sc >= PRECHECK_TIER_MID
+                else "weak" if sc >= 1 else "none")
+        it["score"], it["tier"], it["matched"] = sc, tier, mc + ms
+        counts[tier] += 1
+    return {"core": core, "sub": sub, "counts": counts}
+
+def tchk_segment_result(prefix: str, title: str, items: list, status: str, meta: dict) -> dict:
+    """[Ver9.27 신규, Ver9.28 수정] 한 번의 검색(전체 제목/앞구/뒷구) 결과를 결과 dict 키(prefix_...)로
+    만든다. 세 검색 모두 같은 제목의 핵심·서브 키워드로 채점한다."""
+    cls = tchk_classify_items(items, title)
+    c = cls["counts"]
+    return {f"{prefix}_count": len(items), f"{prefix}_status": status, f"{prefix}_zero": status == "red",
+            f"{prefix}_strong": c["strong"], f"{prefix}_mid": c["mid"], f"{prefix}_weak": c["weak"],
+            f"{prefix}_none": c["none"],
+            f"{prefix}_stop": (meta or {}).get("stop", ""), f"{prefix}_failed": (meta or {}).get("parse_failed", 0)}
+
+def tchk_group_exists(r: dict, prefix: str) -> bool:
+    """[Ver9.27 신규] 관련 글 그룹이 있는가 — 강 1건 이상, 또는 강이 없어도 중이 PRECHECK_MID_MIN 이상."""
+    return r.get(f"{prefix}_strong", 0) >= 1 or r.get(f"{prefix}_mid", 0) >= PRECHECK_MID_MIN
+
+def tchk_count_similar_titles(items: list, title: str, ratio: float = None) -> int:
+    """[Ver9.19 신규] 카드의 링크 텍스트 중 후보 제목과 매우 비슷한(글자 유사도
+    ratio 이상) 것이 있는 카드 수. 같은 제목·유사 제목이 이미 있으면 유사문서로
+    묶이거나 그 글과 직접 경쟁하게 된다."""
+    ratio = PRECHECK_SIMILAR_RATIO if ratio is None else ratio
+
+    def _norm(x):
+        return re.sub(r"[\s\W_]+", "", x or "")
+
+    base = _norm(title)
+    if not base:
+        return 0
+    n = 0
+    for it in items:
+        for a in it.get("anchors", []):
+            b = _norm(a)
+            if not b or not (0.5 <= len(b) / len(base) <= 2.0):
+                continue
+            if difflib.SequenceMatcher(None, base, b).ratio() >= ratio:
+                n += 1
+                break
+    return n
+
+def tchk_precheck_verdict(r: dict):
+    """[Ver9.19 신규, Ver9.27 재작성] 검색 결과 dict → (level, 표시 문구).
+    level: 0=❌(자리 없음/미인식) 1=⚠️(확인 필요) 2=✅
+    판단 원칙(프롬프트A V16 [검색 노출 폭 확인]) — 등급은 핵심어 가중치(3·2·1) 점수 기준:
+      - 전체 제목·앞 핵심구: 관련 글 그룹(강 1건 이상 또는 중 3건 이상)이 있어야 하고 없으면 ❌.
+      - 전체 제목: 같은/유사 제목이 있으면 ⚠️.
+      - 뒷구(검색했을 때): 실제 유입 자리라 그룹이 없으면 ⚠️.
+    표시는 "강N·중N·약N/수집 건수". 판정은 참고이며 목록 전체는 복사로 확인한다."""
+    if r.get("blocked"):
+        why = f" (사유: {r['block_reason']})" if r.get("block_reason") else ""
+        return 1, ("⛔ 네이버 차단/캡차 의심" + why +
+                   " — 결과 신뢰 불가. 잠시 후 다시 시도하거나 🔍 버튼으로 직접 확인")
+    stt = [r.get("full_status"), r.get("front_status")] + ([r.get("back_status")] if r.get("back") else [])
+    if "error" in stt:
+        return 1, "⚠️ 검색 오류 — 🔍 버튼으로 직접 확인"
+    if r.get("full_zero") or r.get("front_zero"):
+        return 0, "❌ 미인식(빨간 안내문) — 후보 제외 권장"
+
+    def tiers(p):
+        return (f"강{r.get(p + '_strong', 0)}·중{r.get(p + '_mid', 0)}·약{r.get(p + '_weak', 0)}"
+                f"/{r.get(p + '_count', 0)}")
+
+    if not tchk_group_exists(r, "full"):
+        return 0, f"❌ 전체 제목 관련 글 없음 ({tiers('full')}) — 들어갈 자리 없음"
+    if not tchk_group_exists(r, "front"):
+        return 0, f"❌ 앞구 '{r.get('front', '')}' 관련 글 없음 ({tiers('front')}) — 들어갈 자리 없음"
+    warns = []
+    if r.get("similar", 0) >= 1:
+        warns.append(f"유사 제목 {r['similar']}건")
+    if r.get("ambiguous"):
+        warns.append("'" + "·".join(r["ambiguous"]) + "' 오독 위험")
+    base = f"전체 {tiers('full')} · 앞구 {tiers('front')}"
+    front_all = r.get("front_strong", 0) + r.get("front_mid", 0) + r.get("front_weak", 0)
+    if front_all > PRECHECK_FRONT_DENSE_MAX:
+        base += "(관련 글 다수)"      # 참고 표시 — 경고 아님
+    if r.get("back"):
+        base += f" · 뒷구 {tiers('back')}"
+        if r.get("back_zero"):
+            warns.append("뒷구 검색결과 없음(빨간 안내문)")
+        elif not tchk_group_exists(r, "back"):
+            warns.append("뒷구 관련 글 그룹 없음")
+    if warns:
+        return 1, "⚠️ " + base + " — " + ", ".join(warns)
+    return 2, "✅ " + base
+
+_PRECHECK_STATUS_TEXT = {"ok": "", "red": "빨간 안내문(검색결과 없음)", "captcha": "차단/캡차 감지",
+                         "error": "검색 오류"}
+
+_PRECHECK_STOP_TEXT = {"cap": "수집 상한 도달(더 있을 수 있음)", "end": "더 이상 안 나옴",
+                       "rounds": "스크롤 한도 도달(더 있을 수 있음)", "red": "검색결과 없음"}
+
+_PRECHECK_MARK = {"strong": "강", "mid": "중", "weak": "약", "none": "  "}
+
+def tchk_format_precheck_report(candidates: list, results: list, packs: list, manual_index: int = 3) -> str:
+    """[Ver9.20 신규, Ver9.27 재작성] 제목별 전체 제목·앞 핵심구·뒷 구절 검색 결과를 Claude에
+    붙여넣기 좋은 텍스트로 만든다. 프로그램은 항목을 걸러내지 않고 수집된 목록 전체를
+    순서대로 담으며, 각 줄 앞의 [강/중/약]은 핵심어 가중치 점수로 매긴 참고 표시일 뿐이다."""
+    lines = ["(블로그탭, 따옴표 없는 자연어 검색 결과입니다. 프로그램이 걸러낸 항목은 없고 수집된 목록 "
+             "전체를 순서대로 담았습니다. 줄 앞의 [강/중/약]과 점수는 프로그램이 매긴 참고 표시입니다 — 내 "
+             f"제목의 핵심 키워드(앞부분)가 결과 제목에 있으면 개당 {PRECHECK_W_CORE}점, 서브 키워드(뒷부분)는 "
+             f"개당 {PRECHECK_W_SUB}점, 2개 이상 일치하면 1개 더할 때마다 +{PRECHECK_BONUS_MORE}, 핵심·서브가 "
+             f"함께 일치하면 +{PRECHECK_BONUS_CROSS}점. 강 {PRECHECK_TIER_STRONG}점 이상, "
+             f"중 {PRECHECK_TIER_MID}~{PRECHECK_TIER_STRONG - 1}점, 약 1~{PRECHECK_TIER_MID - 1}점, 공백 0점. "
+             "추정치이니 목록을 직접 보고 판단해 주세요. \"관리\"·\"지역\" 같은 일반어는 키워드에서 뺐습니다.)", ""]
+    for i, cand in enumerate(candidates or []):
+        title = (cand or {}).get("title", "")
+        if not title:
+            continue
+        pack = packs[i] if i < len(packs) else None
+        r = results[i] if i < len(results) else None
+        label = f"후보 {i + 1}" if i < manual_index else "직접 입력 제목"   # [Ver9.30] 복지로는 후보 최대 4개(manual_index=4)
+        lines.append(f"## {label}: {title} ({len(title)}자)")
+        if not pack or not r:
+            lines += ["(제목정밀검색 결과 없음)", ""]
+            continue
+        front, back = r.get("front", ""), r.get("back", "")
+        keys = [("full", "전체 제목 검색", title)]
+        if front and front != title.strip().rstrip("?？!！. ").strip():
+            keys.append(("front", "앞 핵심구 검색", front))
+        else:
+            lines.append("(앞 핵심구가 전체 제목과 같아 전체 제목 검색 한 번만 했습니다)")
+        if back:
+            keys.append(("back", "뒷 구절 검색", back))
+        for key, name, query in keys:
+            items = pack.get(key, []) or []
+            lines.append(f"### {name} — 검색어: {query}")
+            lines.append(f"- 핵심 키워드({PRECHECK_W_CORE}점): {' · '.join(r.get('kw_core', [])) or '-'}"
+                         f" / 서브 키워드({PRECHECK_W_SUB}점): {' · '.join(r.get('kw_sub', [])) or '-'}")
+            info = (f"- 수집 {len(items)}건 · 강 {r.get(key + '_strong', 0)} · 중 {r.get(key + '_mid', 0)} · "
+                    f"약 {r.get(key + '_weak', 0)} · 무관 {r.get(key + '_none', 0)}")
+            if key == "full":
+                info += f" · 유사 제목 {r.get('similar', 0)}"
+            stop = _PRECHECK_STOP_TEXT.get(r.get(key + "_stop", ""), "")
+            if stop:
+                info += f" · 종료: {stop}"
+            if r.get(key + "_failed"):
+                info += f" · 제목 추출 실패 {r[key + '_failed']}건"
+            st = _PRECHECK_STATUS_TEXT.get(r.get(key + "_status", "ok"), "")
+            if st:
+                info += f" · 상태: {st}"
+            lines.append(info)
+            for n, it in enumerate(items, 1):
+                nm = f" [{it['source_name']}]" if it.get("source_name") else ""
+                mark = f"[{_PRECHECK_MARK.get(it.get('tier', 'none'), '  ')}{it.get('score', 0) or ''}]"
+                if it.get("matched"):
+                    mark += "(" + "·".join(it["matched"]) + ")"
+                body = it.get("title", "")
+                if it.get("parse_failed"):
+                    body += f" 원문: {it.get('raw', '')}"
+                lines.append(f"{n}. {mark} {body}{nm}")
+            lines.append("")
+    return "\n".join(lines).rstrip() + "\n"
+
+
 def parse_value_judgment_title_candidates(text: str) -> list:
     """[v7.17 신규, v7.19에서 형식 갱신, v7.21에서 헤더 매칭 완화]
     가치판단(또는 사전스크리닝+가치판단 통합) 프롬프트의 [2-A단계]
@@ -4845,8 +5388,13 @@ def parse_value_judgment_title_candidates(text: str) -> list:
         title = m_title.group(1).strip().strip("`\"'").strip()
         m_intro = re.search(r"도입부\s*첫\s*문장\s*지시\s*[:：]\s*(.+)", cb)
         intro = m_intro.group(1).strip() if m_intro else ""
+        # [Ver9.30] 가치판단 V8 후보 블록의 "롱테일 축:"·"선택 근거:" 줄(없으면 빈 문자열)
+        m_lt = re.search(r"롱테일\s*축\s*[:：]\s*(.+)", cb)
+        m_rs = re.search(r"선택\s*근거\s*[:：]\s*(.+)", cb)
         if title and title not in [c["title"] for c in candidates]:
-            candidates.append({"title": title, "intro": intro})
+            candidates.append({"title": title, "intro": intro,
+                               "longtail": m_lt.group(1).strip() if m_lt else "",
+                               "reason": m_rs.group(1).strip() if m_rs else ""})
     if candidates:
         return candidates[:4]
 
@@ -4857,7 +5405,7 @@ def parse_value_judgment_title_candidates(text: str) -> list:
         if m:
             title = m.group(1).strip().strip("`\"'").strip()
             if title and title not in [c["title"] for c in candidates]:
-                candidates.append({"title": title, "intro": ""})
+                candidates.append({"title": title, "intro": "", "longtail": "", "reason": ""})
     return candidates[:4]
 
 
@@ -5100,6 +5648,56 @@ def format_attachments_for_prompt(attachments: list) -> str:
             "만으로 정보가 부족하면, 아래 지시문의 웹검색 보강 절차를 따라주세요.")
 
 
+def _read_excel_titles_raw(path: str) -> list:
+    """[Ver9.30] 키워드 엑셀(A열 "키워드" = 제목, 헤더 제외)의 제목을 원문 그대로 읽는다.
+    통합 키워드 엑셀도 같은 스키마다. 파일이 없거나 못 읽으면 빈 리스트."""
+    if not path or not HAS_OPENPYXL or not os.path.exists(path):
+        return []
+    try:
+        wb = load_workbook(path, read_only=True)
+        ws = wb.active
+        out = [str(row[0]).strip() for row in ws.iter_rows(min_row=2, values_only=True)
+               if row and row[0] not in (None, "")]
+        wb.close()
+        return out
+    except Exception as e:
+        print(f"[발행 이력] 엑셀 읽기 실패({path}): {e}")
+        return []
+
+
+def build_publish_history_note(exclude_serv_id: str = "") -> str:
+    """[Ver9.30 신규] 가치판단 V8 [선택 입력](자기잠식 확인)용 발행 이력 블록.
+    같은 블로그에 정책뉴스 글도 올라가므로, 복지로 확정 제목(confirmed_titles.json, 이번
+    서비스 제외)과 키워드 엑셀·통합 키워드 엑셀(정책뉴스 등 다른 프로그램 글 포함)의 등록
+    제목을 중복 없이 모은다. 모은 제목이 없으면 빈 문자열."""
+    seen, lines = set(), []
+
+    def add(title, src, date=""):
+        t = (title or "").strip()
+        key = normalize_keyword_for_match(t)
+        if not t or key in seen:
+            return
+        seen.add(key)
+        lines.append(f"- {t} ({src}{', ' + date if date else ''})")
+
+    try:
+        for sid, d in load_confirmed_titles().items():
+            if sid != exclude_serv_id and isinstance(d, dict):
+                add(d.get("title", ""), "복지로 확정", str(d.get("confirmed_at", ""))[:10])
+    except Exception as e:
+        print(f"[발행 이력] 확정 제목 읽기 실패: {e}")
+    for t in _read_excel_titles_raw(get_keyword_excel_path()):
+        add(t, "키워드 엑셀")
+    for t in _read_excel_titles_raw(get_unified_keyword_excel_path()):
+        add(t, "통합 키워드 엑셀")
+    if not lines:
+        return ""
+    return ("## 발행 이력 — 자기잠식 확인용\n"
+            f"(같은 블로그의 기존 글 제목 {len(lines)}건 — 복지로 확정 제목 + 키워드 엑셀 + 통합 키워드 "
+            "엑셀(정책뉴스 등 다른 프로그램 글 포함). 프롬프트 [선택 입력] 참고)\n"
+            + "\n".join(lines) + "\n")
+
+
 def build_value_judgment_package(detail: dict, source: str, research_map: dict, attachments: list = None,
                                   serv_id: str = "") -> str:
     """서비스 원문 + 키워드 리서치 데이터 + 첨부파일 유무 + (있으면) ⓪
@@ -5119,6 +5717,10 @@ def build_value_judgment_package(detail: dict, source: str, research_map: dict, 
     if serv_id:
         parts.append(format_previous_stage_for_prompt("prescreening", serv_id))
         parts.append("")
+
+    history = build_publish_history_note(serv_id)   # [Ver9.30] 자기잠식 확인용
+    if history:
+        parts.append(history)
 
     parts.append("## 키워드 리서치 데이터\n")
     if not research_map:
@@ -5153,6 +5755,10 @@ def build_prescreening_value_combo_package(detail: dict, source: str, serv_id: s
                   "[사전 스캔 절차] B(경쟁 블로그 구조 분석)까지 함께 수행합니다. 경쟁 블로그 PDF는 "
                   "이 프로그램이 자동 수집하지 않으므로 직접 준비해야 합니다.")
     parts.append("")
+
+    history = build_publish_history_note(serv_id)   # [Ver9.30] 자기잠식 확인용
+    if history:
+        parts.append(history)
 
     parts.append("## 키워드 리서치 데이터\n")
     if not research_map:
@@ -5691,7 +6297,7 @@ class WelfareCollectorGUI(tk.Tk):
         # 메인 창으로 바뀌는 현상(초기 렌더링 중간 상태 노출)이 사라진다.
         self.withdraw()
 
-        self.title("복지로 정책 수집한 후 Claude로 각색 및 인포그래픽 설계하는 프로그램_2026-09-11_Ver 9.11")
+        self.title("복지로 정책 수집한 후 Claude로 각색 및 인포그래픽 설계하는 프로그램_2026-10-03_Ver 9.30")
 
         self.log_queue = queue.Queue()
         self.stop_event = threading.Event()
@@ -6408,10 +7014,11 @@ class WelfareCollectorGUI(tk.Tk):
             row=0, column=0, columnspan=5, sticky="w", padx=6, pady=(6, 2))
         ttk.Label(titlecand_f,
                   text="가치판단 [2-A단계]까지 끝난 뒤(위 '🔍 키워드 리서치'의 재조사 키워드 채우기와는 "
-                       "별개 — 그건 리서치용, 이건 제목용입니다) 이 버튼을 누르세요. 추출하면 셀레니움 "
-                       "자동 사전체크가 함께 시작되고, 결과가 나오면 라벨 옆에 초록 글씨로 표시됩니다. "
-                       "🔍로 직접 확인한 뒤 라디오버튼으로 확정하면, ③ 초안작성 프롬프트 복사 시 이 "
-                       "제목이 자동으로 함께 실려서 초안이 이 제목을 그대로 씁니다.",
+                       "별개 — 그건 리서치용, 이건 제목용입니다) 이 버튼을 누르세요. [▶ 후보 사전체크 실행]을 "
+                       "누르면 후보마다 전체 제목 → 앞구(첫 쉼표 앞) → 뒷구(첫 쉼표 뒤)를 블로그탭에서 검색해 "
+                       "✅/⚠️/❌와 강·중·약 개수를 표시합니다(후보당 1~2분). 본문 적합도를 먼저 보고, "
+                       "🔍로 직접 확인한 뒤 라디오버튼으로 확정하면 ③ 초안작성 프롬프트 복사 시 이 제목이 "
+                       "자동으로 함께 실려서 초안이 이 제목을 그대로 씁니다.",
                   foreground="gray", wraplength=880, justify="left").grid(
             row=1, column=0, columnspan=5, sticky="w", padx=6, pady=(0, 6))
 
@@ -6424,6 +7031,15 @@ class WelfareCollectorGUI(tk.Tk):
         self.title_cand_intros = ["" for _ in range(4)]
         self.title_cand_manual_var = tk.StringVar(value="")
         self.title_cand_precheck_vars = [tk.StringVar(value="") for _ in range(4)]
+        # [Ver9.30] 3단계 사전체크 상태 — 칸 0~3은 후보, 4는 직접 입력
+        self.title_cand_reasons = ["" for _ in range(4)]
+        self.title_manual_precheck_var = tk.StringVar(value="")
+        self.title_precheck_results = [None] * 5
+        self.title_precheck_packs = [None] * 5
+        self._title_precheck_run_id = 0
+        self._title_manual_run_id = 0
+        self._title_precheck_lock = threading.Lock()
+        self.title_cand_choice.trace_add("write", lambda *_a: self._on_title_cand_choice())
 
         titlecand_rows_f = ttk.Frame(titlecand_f)
         titlecand_rows_f.grid(row=2, column=0, columnspan=5, sticky="ew", padx=6)
@@ -6440,10 +7056,16 @@ class WelfareCollectorGUI(tk.Tk):
                        ).grid(row=i, column=2, padx=(0, 2))
             ttk.Button(titlecand_rows_f, text="🔍 통합",
                        command=lambda idx=i: self._open_naver_search_title_candidate(idx, blog=False)
-                       ).grid(row=i, column=3, padx=(0, 8))
+                       ).grid(row=i, column=3, padx=(0, 2))
+            ttk.Button(titlecand_rows_f, text="앞구",
+                       command=lambda idx=i: self._open_naver_search_title_candidate(idx, front=True)
+                       ).grid(row=i, column=4, padx=(0, 2))
+            ttk.Button(titlecand_rows_f, text="뒷구",
+                       command=lambda idx=i: self._open_naver_search_title_candidate(idx, back=True)
+                       ).grid(row=i, column=5, padx=(0, 8))
             ttk.Label(titlecand_rows_f, textvariable=self.title_cand_precheck_vars[i],
-                      foreground="#0D6E0D", font=("맑은 고딕", 8)
-                      ).grid(row=i, column=4, sticky="w", padx=(8, 0))
+                      foreground="#0D6E0D", font=("맑은 고딕", 8), wraplength=420, justify="left"
+                      ).grid(row=i, column=6, sticky="w", padx=(8, 0))
 
         titlecand_manual_f = ttk.Frame(titlecand_f)
         titlecand_manual_f.grid(row=3, column=0, columnspan=5, sticky="ew", padx=6, pady=(4, 0))
@@ -6455,10 +7077,23 @@ class WelfareCollectorGUI(tk.Tk):
                    command=lambda: self._open_naver_search_title_manual(blog=True)).pack(
             side="left", padx=(0, 2))
         ttk.Button(titlecand_manual_f, text="🔍 통합",
-                   command=lambda: self._open_naver_search_title_manual(blog=False)).pack(side="left")
+                   command=lambda: self._open_naver_search_title_manual(blog=False)).pack(side="left", padx=(0, 2))
+        ttk.Button(titlecand_manual_f, text="앞구",
+                   command=lambda: self._open_naver_search_title_manual(front=True)).pack(side="left", padx=(0, 2))
+        ttk.Button(titlecand_manual_f, text="뒷구",
+                   command=lambda: self._open_naver_search_title_manual(back=True)).pack(side="left", padx=(0, 8))
+        ttk.Button(titlecand_manual_f, text="▶ 사전체크",
+                   command=self._start_title_manual_precheck).pack(side="left")
+        ttk.Label(titlecand_f, textvariable=self.title_manual_precheck_var,
+                  foreground="#0D6E0D", font=("맑은 고딕", 8), wraplength=880, justify="left").grid(
+            row=4, column=0, columnspan=5, sticky="w", padx=12)
 
         titlecand_action_f = ttk.Frame(titlecand_f)
-        titlecand_action_f.grid(row=4, column=0, columnspan=5, sticky="w", padx=6, pady=(8, 6))
+        titlecand_action_f.grid(row=5, column=0, columnspan=5, sticky="w", padx=6, pady=(8, 6))
+        ttk.Button(titlecand_action_f, text="▶ 후보 사전체크 실행",
+                   command=self._start_title_cand_precheck).pack(side="left", padx=(0, 8))
+        ttk.Button(titlecand_action_f, text="📋 사전체크 결과 복사",
+                   command=self._copy_title_precheck_report).pack(side="left", padx=(0, 8))
         ttk.Button(titlecand_action_f, text="✅ 이 제목으로 확정(초안작성에 자동 전달)",
                    command=self._confirm_title_candidate).pack(side="left", padx=(0, 8))
         ttk.Button(titlecand_action_f, text="🗑 확정 취소",
@@ -7665,7 +8300,7 @@ class WelfareCollectorGUI(tk.Tk):
             try:
                 result = self._compute_status_and_rows()
             except Exception as e:
-                self.after(0, lambda: self._log(f"⚠️ 시작 시 상태 갱신 실패: {e}"))
+                self.after(0, lambda e=e: self._log(f"⚠️ 시작 시 상태 갱신 실패: {e}"))   # [Ver9.30] e를 람다에 묶음
                 return
             self.after(0, lambda: self._apply_status_result(result))
 
@@ -7784,7 +8419,7 @@ class WelfareCollectorGUI(tk.Tk):
             try:
                 rows = build_listing_rows(include_fuzzy=True)
             except Exception as e:
-                def fail():
+                def fail(e=e):   # [Ver9.30] except 블록이 끝나면 e가 사라지므로 기본값으로 묶음
                     self._similar_recheck_running = False
                     self.similar_recheck_status_var.set(f"❌ 작업 실패: {e}")
                     self._log(f"✗ 중복 정책 재검사 실패: {e}")
@@ -8566,40 +9201,74 @@ class WelfareCollectorGUI(tk.Tk):
                 "먼저 키워드 리서치를 마치고 핵심 키워드를 확정지은 뒤 가치판단 결과를 다시 저장하세요."
             )
 
+        # [Ver9.30] 새 후보를 불러왔으므로 진행 중이던 사전체크는 멈추고 결과를 비운다.
+        self._title_precheck_run_id += 1
+        self.title_precheck_results[:4] = [None] * 4
+        self.title_precheck_packs[:4] = [None] * 4
         for i in range(4):
             if i < len(candidates):
-                self.title_cand_texts[i] = candidates[i]["title"]
-                self.title_cand_intros[i] = candidates[i]["intro"]
-                self.title_cand_label_vars[i].set(candidates[i]["title"])
+                c = candidates[i]
+                self.title_cand_texts[i] = c["title"]
+                self.title_cand_intros[i] = c.get("intro", "")
+                self.title_cand_reasons[i] = c.get("reason", "")
+                self.title_cand_label_vars[i].set(f"({len(c['title'])}자) {c['title']}")
             else:
                 self.title_cand_texts[i] = ""
                 self.title_cand_intros[i] = ""
+                self.title_cand_reasons[i] = ""
                 self.title_cand_label_vars[i].set("")
-            self.title_cand_precheck_vars[i].set("")
+            self.title_cand_precheck_vars[i].set(
+                "사전체크 안 함 — 필요하면 [▶ 후보 사전체크 실행]" if i < len(candidates) else "")
         self.title_cand_choice.set(str(0)) if candidates else self.title_cand_choice.set("")
-        self.title_cand_status_var.set(f"제목 후보 {len(candidates)}개 추출 완료 — 🔍로 직접 확인 후 확정하세요.")
+        if candidates:
+            self.title_cand_status_var.set(
+                f"제목 후보 {len(candidates)}개 추출 완료 — 본문 적합도를 먼저 보고, "
+                f"[▶ 후보 사전체크 실행] 또는 🔍로 확인한 뒤 확정하세요.")
         self._log(f"📝 제목 후보 {len(candidates)}개 추출: {row['servNm']}")
-        self._start_title_cand_precheck()
 
-    def _open_naver_search_title_candidate(self, idx, blog=True):
+    def _on_title_cand_choice(self):
+        """[Ver9.30] 후보 라디오버튼을 고르면 가치판단이 남긴 "선택 근거"를 상태줄에 보여 준다."""
+        choice = self.title_cand_choice.get()
+        if not choice or choice == "manual":
+            return
+        try:
+            idx = int(choice)
+        except ValueError:
+            return
+        reason = self.title_cand_reasons[idx] if idx < len(self.title_cand_reasons) else ""
+        if reason and hasattr(self, "title_cand_status_var"):
+            self.title_cand_status_var.set(f"[{idx+1}] 선택 근거: {reason}")
+
+    def _title_search_query(self, title, front=False, back=False):
+        if front:
+            return tchk_split_title_front(title)
+        if back:
+            return tchk_split_title_back(title) or title
+        return title
+
+    def _open_naver_search_title_candidate(self, idx, blog=True, front=False, back=False):
         title = self.title_cand_texts[idx] if idx < len(self.title_cand_texts) else ""
         if not title:
             messagebox.showwarning("알림", "이 자리에는 추출된 후보가 없습니다.")
             return
         if self._check_ip_before_naver_open():
             return
-        open_naver_search_in_chrome(title, blog_only=blog)
-        self._log(f"🌐 제목 후보 검색 열기({'블로그' if blog else '통합'}): {title}")
+        q = self._title_search_query(title, front, back)
+        open_naver_search_in_chrome(q, blog_only=blog or front or back)
+        what = "앞구" if front else ("뒷구" if back else ("블로그" if blog else "통합"))
+        self._log(f"🌐 제목 후보 검색 열기({what}): {q}")
 
-    def _open_naver_search_title_manual(self, blog=True):
+    def _open_naver_search_title_manual(self, blog=True, front=False, back=False):
         title = self.title_cand_manual_var.get().strip()
         if not title:
             messagebox.showwarning("알림", "직접 입력 칸에 검색할 제목을 입력하세요.")
             return
         if self._check_ip_before_naver_open():
             return
-        open_naver_search_in_chrome(title, blog_only=blog)
-        self._log(f"🌐 제목 후보 검색 열기({'블로그' if blog else '통합'}): {title}")
+        q = self._title_search_query(title, front, back)
+        open_naver_search_in_chrome(q, blog_only=blog or front or back)
+        what = "앞구" if front else ("뒷구" if back else ("블로그" if blog else "통합"))
+        self._log(f"🌐 직접 입력 제목 검색 열기({what}): {q}")
 
     def _confirm_title_candidate(self):
         row = self._get_selected_posting_row()
@@ -8613,9 +9282,16 @@ class WelfareCollectorGUI(tk.Tk):
         if choice == "manual":
             title = self.title_cand_manual_var.get().strip()
             # [v7.19] 직접 입력한 제목에는 가치판단이 낸 도입부 지시가
-            # 없다 — 초안작성 V5는 지시가 없으면 스스로 화두를 추론하는
+            # 없다 — 초안작성은 지시가 없으면 스스로 화두를 추론하는
             # 폴백을 이미 갖고 있으므로 빈 문자열로 저장해도 안전하다.
             intro = ""
+            # [Ver9.30] 직접 고친 제목도 가치판단 V8 [제목 형식 규칙]으로 한 번 점검한다.
+            tv = validate_title(title)
+            if title and tv["warnings"]:
+                msg = "직접 입력한 제목에 다음 사항이 확인됩니다:\n\n" + "\n".join(
+                    f"• {w}" for w in tv["warnings"])
+                if not messagebox.askyesno("제목 점검 결과", msg + "\n\n그래도 이 제목으로 확정하시겠습니까?"):
+                    return
         else:
             idx = int(choice)
             title = self.title_cand_texts[idx] if idx < len(self.title_cand_texts) else ""
@@ -8641,97 +9317,211 @@ class WelfareCollectorGUI(tk.Tk):
         self.title_cand_status_var.set("확정 취소됨 — 초안작성 시 다시 직접 짓습니다.")
         self._log(f"🗑 제목 확정 취소: {row['servNm']}")
 
+    # ──────────────────────────────────────────────────────
+    # [Ver9.30] 제목 사전체크 3단계 — 정책뉴스 Ver10.02의 제목정밀검색(_run_title_precheck)을
+    # 복지로 UI에 맞춰 옮겼다. 후보마다 전체 제목 → 앞구 → 뒷구를 블로그탭에서 따옴표 없이
+    # 검색하고(tchk_collect_blog_results), 결과 제목을 tchk_classify_items로 강·중·약 채점해
+    # tchk_precheck_verdict로 ✅/⚠️/❌를 정한다. 칸 0~3은 후보, 4는 직접 입력.
+    # ──────────────────────────────────────────────────────
+    def _title_precheck_var(self, sl):
+        return self.title_manual_precheck_var if sl >= 4 else self.title_cand_precheck_vars[sl]
+
     def _start_title_cand_precheck(self):
         if not HAS_SELENIUM:
+            messagebox.showwarning("selenium 없음", "selenium이 설치돼 있지 않아 사전체크를 할 수 없습니다.\n"
+                                   "🔍 버튼으로 직접 확인하세요.")
             return
-        titles = list(self.title_cand_texts)
-        if not any(titles):
+        targets = [(i, t) for i, t in enumerate(self.title_cand_texts) if t]
+        if not targets:
+            messagebox.showwarning("후보 없음", "사전체크할 후보가 없습니다.\n"
+                                   "먼저 [📋 가치판단 결과에서 제목 후보 추출]을 누르세요.")
             return
-        threading.Thread(target=self._run_title_cand_precheck, args=(titles,), daemon=True).start()
+        self._title_precheck_run_id += 1
+        run_id = self._title_precheck_run_id
+        for sl, _t in targets:
+            self.title_precheck_results[sl] = None
+            self.title_precheck_packs[sl] = None
+            cur = self.title_cand_label_vars[sl].get()
+            if cur.startswith("⭐ 1차 추천 "):
+                self.title_cand_label_vars[sl].set(cur[len("⭐ 1차 추천 "):])
+            self.title_cand_precheck_vars[sl].set("⏳ 사전체크 대기 중...")
+        self._log(f"🔎 제목 사전체크 시작: 후보 {len(targets)}개 (전체 제목·앞구·뒷구, 후보당 1~2분)")
+        threading.Thread(target=self._run_title_cand_precheck,
+                         args=(targets, run_id, "_title_precheck_run_id"), daemon=True).start()
 
-    def _run_title_cand_precheck(self, titles):
-        try:
-            driver = self._get_or_create_kw_precheck_driver()
-        except Exception as e:
-            self.after(0, lambda: [
-                self.title_cand_precheck_vars[i].set("❌ 헤드리스 크롬 생성 실패")
-                for i in range(len(titles)) if titles[i]
-            ])
-            print(f"❌ [제목 사전체크] 헤드리스 크롬 생성 실패: {e}")
+    def _start_title_manual_precheck(self):
+        title = self.title_cand_manual_var.get().strip()
+        if not title:
+            messagebox.showwarning("알림", "직접 입력 칸에 제목을 먼저 입력하세요.")
             return
+        if not HAS_SELENIUM:
+            messagebox.showwarning("selenium 없음", "selenium이 설치돼 있지 않아 사전체크를 할 수 없습니다.")
+            return
+        self._title_manual_run_id += 1
+        run_id = self._title_manual_run_id
+        self.title_precheck_results[4] = None
+        self.title_precheck_packs[4] = None
+        self.title_manual_precheck_var.set("⏳ 직접 입력 제목 사전체크 대기 중...")
+        self._log(f"🔎 직접 입력 제목 사전체크 시작: {title}")
+        threading.Thread(target=self._run_title_cand_precheck,
+                         args=([(4, title)], run_id, "_title_manual_run_id"), daemon=True).start()
 
-        results = [None] * len(titles)
-        for i, title in enumerate(titles):
-            if not title:
-                continue
-            if self.title_cand_texts != titles:
-                return  # 그 사이 다른 항목으로 후보가 바뀌면 중단
-            self.after(0, lambda i=i: self.title_cand_precheck_vars[i].set("⏳ 사전체크 중..."))
+    def _run_title_cand_precheck(self, targets, run_id, run_attr):
+        """백그라운드 스레드. 위젯 값은 self.after(0, ...)로 메인 스레드에서만 바꾼다.
+        run_attr의 실행 번호가 run_id와 달라지면(새 후보를 불러옴) 조용히 중단한다."""
+        def alive():
+            return run_id == getattr(self, run_attr)
+
+        def name_of(sl):
+            return f"후보 {sl + 1}" if sl < 4 else "직접 입력 제목"
+
+        def setv(sl, text):
+            self.after(0, lambda: alive() and self._title_precheck_var(sl).set(text))
+
+        slots = [sl for sl, _t in targets]
+        caps = PRECHECK_COLLECT_LEVELS["많이"]
+        with self._title_precheck_lock:
+            if not alive():
+                return
+            for sl in slots:
+                setv(sl, "⏳ 크롬 시작 중... (처음 한 번은 수 초~수십 초 걸립니다)")
             try:
-                q = quote(title)
-                driver.get(f"https://search.naver.com/search.naver?ssc=tab.blog.all&sm=tab_jum&query={q}")
-                time.sleep(random.uniform(1.5, 3.0))
-                blog_count, blog_zero = kw_count_blog_search_results(driver.page_source)
-
-                driver.get(f"https://search.naver.com/search.naver?query={q}")
-                time.sleep(random.uniform(1.5, 3.0))
-                int_count, int_zero = kw_count_integrated_search_results(driver.page_source)
-
-                result = {"blog_count": blog_count, "blog_zero": blog_zero,
-                          "int_count": int_count, "int_zero": int_zero}
-                results[i] = result
-
-                if blog_zero or int_zero:
-                    text = "❌ 미인식 — 후보 제외 권장"
-                elif blog_count <= 2 and int_count <= 2:
-                    text = f"⚠️ 완전일치형 가능성 (블로그 {blog_count} / 통합 {int_count})"
-                elif blog_count > 50 or int_count > 30:
-                    text = f"⚠️ 경쟁 과다 (블로그 {blog_count} / 통합 {int_count})"
-                else:
-                    text = f"✅ 적정 (블로그 {blog_count} / 통합 {int_count})"
-
-                self.after(0, lambda i=i, text=text: self.title_cand_precheck_vars[i].set(text))
+                driver = self._get_or_create_kw_precheck_driver()
             except Exception as e:
-                self.after(0, lambda i=i, e=e: self.title_cand_precheck_vars[i].set(f"❌ 확인 실패: {e}"))
-                print(f"❌ [제목 사전체크] 후보 {i+1} 검색 오류: {e}")
+                for sl in slots:
+                    setv(sl, f"❌ 헤드리스 크롬 생성 실패: {str(e).splitlines()[0][:90] if str(e) else e}")
+                print(f"❌ [제목 사전체크] 헤드리스 크롬 생성 실패: {e}")
+                return
 
-            time.sleep(random.uniform(2.0, 4.0))
+            for sl, title in targets:
+                if not alive():
+                    return
+                nm = name_of(sl)
+                try:
+                    front = tchk_split_title_front(title)
+                    norm_title = title.strip().rstrip("?？!！. ").strip()
+                    same = (not front) or front == norm_title
+                    back = tchk_split_title_back(title)
+                    finfo, rinfo, binfo = {}, {}, {}
+                    c_full, c_front, c_back, c_rounds = caps
 
-        self.after(0, lambda: self._recommend_best_title_cand(results))
+                    setv(sl, f"⏳ {nm}: 전체 제목 검색 중...")
+                    full_items, full_status = tchk_collect_blog_results(
+                        driver, title, c_full,
+                        progress_fn=lambda n, sl=sl, nm=nm: setv(sl, f"⏳ {nm}: 전체 제목 검색 중... ({n}건 수집)"),
+                        info=finfo, rounds=c_rounds)
+                    if not alive():
+                        return
+                    if same:
+                        front_items, front_status, rinfo = full_items, full_status, finfo
+                    else:
+                        time.sleep(random.uniform(1.5, 3.0))
+                        setv(sl, f"⏳ {nm}: 앞구 '{front}' 검색 중...")
+                        front_items, front_status = tchk_collect_blog_results(
+                            driver, front, c_front,
+                            progress_fn=lambda n, sl=sl, nm=nm: setv(sl, f"⏳ {nm}: 앞구 검색 중... ({n}건 수집)"),
+                            info=rinfo, rounds=c_rounds)
+                        if not alive():
+                            return
+                    back_items, back_status = [], "ok"
+                    if back:
+                        time.sleep(random.uniform(1.5, 3.0))
+                        setv(sl, f"⏳ {nm}: 뒷구 '{back}' 검색 중...")
+                        back_items, back_status = tchk_collect_blog_results(
+                            driver, back, c_back,
+                            progress_fn=lambda n, sl=sl, nm=nm: setv(sl, f"⏳ {nm}: 뒷구 검색 중... ({n}건 수집)"),
+                            info=binfo, rounds=c_rounds)
+                        if not alive():
+                            return
 
-    def _recommend_best_title_cand(self, results):
-        best_idx, best_score, best_total = None, -1, None
-        any_checked = False
-        for i, r in enumerate(results):
+                    result = {"title": title, "front": front, "back": back,
+                              "similar": tchk_count_similar_titles(full_items, title),
+                              "blocked": "captcha" in (full_status, front_status, back_status),
+                              "block_reason": finfo.get("reason") or rinfo.get("reason") or binfo.get("reason", ""),
+                              "ambiguous": [t for t in PRECHECK_AMBIGUOUS_TERMS if t in title]}
+                    result.update(tchk_segment_result("full", title, full_items, full_status, finfo))
+                    result.update(tchk_segment_result("front", title, front_items, front_status, rinfo))
+                    if back:
+                        result.update(tchk_segment_result("back", title, back_items, back_status, binfo))
+                    result["kw_core"], result["kw_sub"] = tchk_title_keywords(title)
+                    level, text = tchk_precheck_verdict(result)
+                    result["level"] = level
+                    pack = {"full": full_items, "front": front_items, "back": back_items}
+                    self._log(f"🔎 [제목 사전체크] {nm}: {text}")
+
+                    def _apply(sl=sl, result=result, text=text, pack=pack):
+                        if not alive():
+                            return
+                        self.title_precheck_results[sl] = result
+                        self.title_precheck_packs[sl] = pack
+                        self._title_precheck_var(sl).set(text)
+                    self.after(0, _apply)
+
+                    if result["blocked"]:
+                        # 차단 상태에서 계속 검색하면 더 막히므로 남은 제목은 검색하지 않는다.
+                        for other in slots:
+                            if other > sl:
+                                setv(other, "⛔ 차단 감지로 사전체크 중단")
+                        break
+                except Exception as e:
+                    setv(sl, f"❌ 확인 실패: {str(e)[:90]}")
+                    print(f"❌ [제목 사전체크] {nm} 검색 오류: {e}")
+
+                time.sleep(random.uniform(2.0, 4.0))
+
+            if alive() and run_attr == "_title_precheck_run_id":
+                self.after(0, lambda: alive() and self._recommend_best_title_cand())
+
+    def _recommend_best_title_cand(self):
+        """사전체크가 끝난 뒤 ✅(전체 제목·앞구 모두 관련 글 그룹이 있고 경고 없음) 후보 중
+        앞구 관련 글(강+중)이 적은 쪽을 1차 추천한다. 후보 선택은 본문 적합도가 먼저이고
+        검색 위치는 그다음이므로 이 추천은 참고일 뿐이다(정책뉴스와 같은 기준)."""
+        best_idx, best_key, any_checked = None, None, False
+        for i, r in enumerate(self.title_precheck_results[:4]):
             if not r:
                 continue
             any_checked = True
-            total = r.get("blog_count", 0) + r.get("int_count", 0)
-            if r.get("blog_zero") or r.get("int_zero"):
-                score = 0
-            elif r.get("blog_count", 0) <= 2 and r.get("int_count", 0) <= 2:
-                score = 1
-            elif r.get("blog_count", 0) > 50 or r.get("int_count", 0) > 30:
-                score = 1
-            else:
-                score = 2
-            if score > best_score or (score == best_score and best_total is not None and total < best_total):
-                best_idx, best_score, best_total = i, score, total
-
+            if r.get("level", 0) < 2:
+                continue
+            key = (r.get("front_strong", 0) + r.get("front_mid", 0),
+                   r.get("full_strong", 0) + r.get("full_mid", 0))
+            if best_key is None or key < best_key:
+                best_idx, best_key = i, key
         if not any_checked:
             return
-        if best_score <= 1:
+        if best_idx is None:
             self.title_cand_status_var.set(
-                "⚠️ 사전체크 결과 후보 대부분 미인식/완전일치형/경쟁과다 쪽입니다. "
-                "그래도 🔍 버튼으로 직접 확인하거나 직접 입력을 활용하세요.")
+                "⚠️ 사전체크 결과 ✅ 후보가 없습니다. ⚠️ 후보는 🔍·앞구·뒷구 버튼으로 직접 확인하고, "
+                "❌뿐이면 [📋 사전체크 결과 복사]로 Claude에 검토를 요청하거나 직접 입력을 활용하세요.")
             return
-        if best_idx is not None:
-            current = self.title_cand_label_vars[best_idx].get()
-            if not current.startswith("⭐ 1차 추천 "):
-                self.title_cand_label_vars[best_idx].set("⭐ 1차 추천 " + current)
-            self.title_cand_status_var.set(
-                f"사전체크 결과 {best_idx+1}번째 후보를 1차 추천합니다. "
-                "🔍 버튼으로 직접 확인한 뒤 라디오버튼으로 최종 확정하세요.")
+        current = self.title_cand_label_vars[best_idx].get()
+        if not current.startswith("⭐ 1차 추천 "):
+            self.title_cand_label_vars[best_idx].set("⭐ 1차 추천 " + current)
+        self.title_cand_status_var.set(
+            f"사전체크 결과 {best_idx+1}번째 후보를 1차 추천합니다(참고용). 본문 적합도를 먼저 보고, "
+            "🔍로 직접 확인한 뒤 라디오버튼으로 최종 확정하세요.")
+
+    def _copy_title_precheck_report(self):
+        """[Ver9.30] 사전체크가 수집한 검색 결과 목록 전체(후보 + 직접 입력)를 클립보드로 복사한다 —
+        Claude 대화창에 붙여넣어 검토를 받는 용도. 항목은 걸러내지 않는다."""
+        if not any(self.title_precheck_packs):
+            messagebox.showwarning("사전체크 결과 없음",
+                "복사할 사전체크 결과가 없습니다.\n"
+                "[▶ 후보 사전체크 실행](또는 직접 입력 줄의 [▶ 사전체크])을 누르고 끝나기를 기다려 주세요.")
+            return
+        cands = [{"title": t} if self.title_precheck_packs[i] else {} for i, t in enumerate(self.title_cand_texts[:4])]
+        results = list(self.title_precheck_results[:4])
+        packs = list(self.title_precheck_packs[:4])
+        if self.title_precheck_packs[4] and self.title_precheck_results[4]:
+            cands.append({"title": self.title_precheck_results[4].get("title", "")})
+            results.append(self.title_precheck_results[4])
+            packs.append(self.title_precheck_packs[4])
+        text = tchk_format_precheck_report(cands, results, packs, manual_index=4)
+        self.clipboard_clear()
+        self.clipboard_append(text)
+        messagebox.showinfo("복사 완료",
+            "제목 사전체크 검색 결과(전체 제목·앞구·뒷구 목록 전체)가 클립보드에 복사됐습니다.\n"
+            "Claude 대화창에 붙여넣어 검토를 요청하세요.")
 
     def _show_research_summary_popup(self):
         """[v7.0 신규, 정책뉴스 Ver8.22에서 이식] "🔍 키워드 리서치 실행"

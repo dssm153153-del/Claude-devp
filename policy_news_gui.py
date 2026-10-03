@@ -1025,6 +1025,12 @@
         파일명)"라고 해 D 본문의 4단 구조("### 대상 소제목" 머리줄 포함)와 달랐다. C V7 이후의 "소제목
         질문에 대한 답·결론 카드"와 "생략 사유"도 넘겨받을 항목에 넣었다. (참고: 설정에 지정된 D 파일에
         C 내용이 중복 저장돼 있던 것을 2026-10-02에 발견해 교체했다.)
+        (6) 프롬프트A 복사 시 붙이는 자기잠식 확인용 이력에, 통합 키워드 엑셀에 등록된 다른 프로그램(복지로
+        등) 글 제목 중 핵심DB에 없는 것을 따로 덧붙인다 — 두 프로그램이 같은 블로그에 올리므로 서로의 글도
+        자기잠식 확인 대상이다(복지로 Ver9.30도 같은 방향으로 통합 키워드 엑셀 제목을 붙인다).
+        (7) 제목정밀검색 오류 처리에서 쓰는 traceback이 import돼 있지 않아, 검색 중 예외가 나면 오류 안내
+        대신 NameError로 스레드가 멈추던 문제 수정(import traceback 추가). 워터마크 앵커 이미지 오류 안내
+        람다도 사라진 예외 변수 e를 참조하던 것을 e=e로 묶음.
 """
 
 import os
@@ -1033,6 +1039,7 @@ import re
 import sys
 import json
 import html
+import traceback
 import time
 import random
 import webbrowser
@@ -6909,8 +6916,32 @@ class App(tk.Tk):
         빈 배열([])로라도 보낼 필요가 없다(A 쪽에서 어차피 아무 근거도
         못 찾는 것과 동일하지만, 프롬프트 분량만 늘리지 않기 위함)."""
         records = load_dup_db()
+        # [Ver10.02] 같은 블로그의 다른 프로그램(복지로 등) 글도 자기잠식 확인에 넣는다 —
+        # 통합 키워드 엑셀(A열 = 제목)에 있는데 핵심DB에 없는 제목만 따로 붙인다.
+        other_titles = []
+        try:
+            upath = _get_unified_keyword_excel_path()
+            if upath and OPENPYXL_OK and os.path.exists(upath):
+                known = {_normalize_title_for_match(r.get("title", "")) for r in records}
+                wb = load_workbook(upath, read_only=True)
+                for row in wb.active.iter_rows(min_row=2, values_only=True):
+                    if row and row[0]:
+                        t = str(row[0]).strip()
+                        k = _normalize_title_for_match(t)
+                        if k and k not in known:
+                            known.add(k)
+                            other_titles.append(t)
+                wb.close()
+        except Exception as e:
+            print(f"[핵심DB 첨부] 통합 키워드 엑셀 읽기 실패: {e}")
+        other_note = (
+            f"\n[선택 입력 — 통합 키워드 엑셀의 다른 발행 글 제목]\n"
+            f"(같은 블로그에 올라간 복지로 등 다른 프로그램 글, 핵심DB에 없는 것만 {len(other_titles)}건 — "
+            f"제목만 있으므로 제목의 서비스·정책명과 롱테일 축으로 겹침을 판단)\n"
+            + "\n".join(f"- {t}" for t in other_titles) + "\n"
+        ) if other_titles else ""
         if not records:
-            return ""
+            return other_note
         slim = [
             {
                 "title":        r.get("title", ""),
@@ -6926,7 +6957,7 @@ class App(tk.Tk):
             f"(자기잠식 확인용 — title·keyword·sub_keywords·date 네 필드만 추림, "
             f"총 {len(slim)}건)\n"
             f"{db_json}\n"
-        )
+        ) + other_note
 
     def _run_tab2_keyword_research(self):
         """[v7.24 신규] STEP 1.5 — 검색광고 API + 오픈API로 키워드 리서치를
@@ -10980,7 +11011,7 @@ class App(tk.Tk):
             try:
                 anchor_img = Image.open(anchor_path).convert("RGBA")
             except Exception as e:
-                self.after(0, lambda: messagebox.showerror("오류", f"앵커 이미지를 열 수 없습니다:\n{e}"))
+                self.after(0, lambda e=e: messagebox.showerror("오류", f"앵커 이미지를 열 수 없습니다:\n{e}"))
                 return
 
             success = fail = 0
