@@ -1820,6 +1820,9 @@ v7.21 (2026-09-22): 🐛 parse_value_judgment_title_candidates() 헤더
                      키워드 엑셀(정책뉴스 등 같은 블로그 글 포함)의 등록 제목.
                      (5) 프롬프트 파일 맨 앞의 검토용 참고 메모("[참고 메모" 표시가
                      있는 첫 "---" 앞 블록)는 복사할 때 빼고 "# 제목"과 본문만 보낸다.
+                     (7) GPT용 최종각색 프롬프트 폐기: ⑤(GPT) 버튼 2개, 설정 탭의
+                     "최종각색 프롬프트 파일명 (GPT용)" 줄, 시작 시 프롬프트 파일
+                     점검 목록에서 뺐다. 최종각색은 ⑤(Claude) 2차 각색 경로만 쓴다.
                      (6) 오류 처리 람다가 except 블록 밖에서 사라진 예외 변수 e를
                      참조하던 곳 2군데(시작 시 상태 갱신 실패, 중복 정책 재검사
                      실패)를 e=e로 묶어, 오류 안내 대신 NameError가 나던 문제 수정.
@@ -2859,7 +2862,8 @@ def require_prompt_file(cfg_key: str, label: str) -> str:
 
 
 def check_prompt_files_status() -> list:
-    """6개 프롬프트 파일이 PROMPT_DIR에 실제로 존재하는지 점검만 한다
+    """프롬프트 파일이 PROMPT_DIR에 실제로 존재하는지 점검만 한다([Ver9.30] GPT용 최종각색은
+    폐기돼 점검 대상에서 뺐다 — 파일이 없다는 시작 안내가 매번 뜨지 않게)
     (더 이상 코드 내장 기본값으로 자동 생성하지 않음 — 프롬프트는 순전히
     외부 파일로만 관리하라는 요청에 따름). 없는 파일 목록을
     [(라벨, 전체경로), ...] 형태로 돌려준다 — 시작 시 로그에 안내하는 데
@@ -2871,7 +2875,6 @@ def check_prompt_files_status() -> list:
         ("prompt_prescreening_value_combo_file", "사전스크리닝+가치판단 통합(Claude)"),
         ("prompt_value_judgment_file", "가치판단"),
         ("prompt_draft_file", "초안작성"),
-        ("prompt_final_adaptation_file", "최종각색"),
         ("prompt_claude_second_stage_file", "2차 각색(Claude)"),
         ("prompt_infographic_file", "인포그래픽"),
     ]
@@ -6962,12 +6965,10 @@ class WelfareCollectorGUI(tk.Tk):
         # 경로, 맨 끝에 공용 결과저장 버튼을 둔다. 둘 다 1차 초안을
         # 검증·각색만 하는(초안을 새로 쓰지 않는) 동일한 역할이라 결과
         # 형식이 같으므로 "⑥ 최종각색 결과 저장" 버튼 하나를 공유한다.
-        ttk.Button(stage_row1c, text="⑤(GPT) 최종각색 프롬프트+자료 복사",
-                   command=self._copy_final_adaptation_prompt).pack(side="left", padx=(6, 2), pady=(0, 6))
-        ttk.Button(stage_row1c, text="⑤(GPT) 프롬프트만 복사 (GPT)",
-                   command=self._copy_final_adaptation_prompt_only).pack(side="left", padx=(0, 12), pady=(0, 6))
+        # [Ver9.30] GPT용 최종각색 프롬프트 파일을 폐기해 ⑤(GPT) 버튼 2개를 뺐다. 최종각색은
+        # Claude 2차 각색 경로 하나만 쓴다(함수 _copy_final_adaptation_prompt*는 남아 있으나 호출하지 않음).
         ttk.Button(stage_row1c, text="⑤(Claude) 최종각색 프롬프트+자료 복사 (1차 초안 필요)",
-                   command=self._copy_claude_second_stage_prompt).pack(side="left", padx=(0, 2), pady=(0, 6))
+                   command=self._copy_claude_second_stage_prompt).pack(side="left", padx=(6, 2), pady=(0, 6))
         ttk.Button(stage_row1c, text="⑤(Claude) 프롬프트만 복사 (Claude)",
                    command=self._copy_claude_second_stage_prompt_only).pack(side="left", padx=(0, 12), pady=(0, 6))
         ttk.Button(stage_row1c, text="⑥ 최종각색 결과 저장 (.md)",
@@ -7609,16 +7610,7 @@ class WelfareCollectorGUI(tk.Tk):
             row=srow, column=2, padx=6, pady=2)
         srow += 1
 
-        ttk.Label(settings_inner, text="최종각색 프롬프트 파일명 (GPT용):").grid(
-            row=srow, column=0, sticky="w", padx=6, pady=2)
-        self.settings_prompt_final_var = tk.StringVar(
-            value=cfg_now.get("prompt_final_adaptation_file", _DEFAULT_CONFIG["prompt_final_adaptation_file"]))
-        ttk.Entry(settings_inner, textvariable=self.settings_prompt_final_var).grid(
-            row=srow, column=1, sticky="ew", padx=6, pady=2)
-        ttk.Button(settings_inner, text="찾기",
-                   command=lambda: self._browse_prompt_file(self.settings_prompt_final_var)).grid(
-            row=srow, column=2, padx=6, pady=2)
-        srow += 1
+        # [Ver9.30] "최종각색 프롬프트 파일명 (GPT용)" 설정 줄 삭제 — GPT용 최종각색 프롬프트 폐기.
 
         ttk.Label(settings_inner, text="인포그래픽 프롬프트 파일명:").grid(
             row=srow, column=0, sticky="w", padx=6, pady=2)
@@ -10934,7 +10926,6 @@ class WelfareCollectorGUI(tk.Tk):
         cfg["prompt_prescreening_value_combo_file"] = self.settings_prompt_prescreening_combo_var.get().strip() or _DEFAULT_CONFIG["prompt_prescreening_value_combo_file"]
         cfg["prompt_value_judgment_file"] = self.settings_prompt_vj_var.get().strip() or _DEFAULT_CONFIG["prompt_value_judgment_file"]
         cfg["prompt_draft_file"] = self.settings_prompt_draft_var.get().strip() or _DEFAULT_CONFIG["prompt_draft_file"]
-        cfg["prompt_final_adaptation_file"] = self.settings_prompt_final_var.get().strip() or _DEFAULT_CONFIG["prompt_final_adaptation_file"]
         cfg["prompt_claude_second_stage_file"] = self.settings_prompt_claude2_var.get().strip() or _DEFAULT_CONFIG["prompt_claude_second_stage_file"]
         cfg["prompt_infographic_file"] = self.settings_prompt_info_var.get().strip() or _DEFAULT_CONFIG["prompt_infographic_file"]
         save_config(cfg)
