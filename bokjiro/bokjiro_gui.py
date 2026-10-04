@@ -1826,6 +1826,13 @@ v7.21 (2026-09-22): 🐛 parse_value_judgment_title_candidates() 헤더
                      (6) 오류 처리 람다가 except 블록 밖에서 사라진 예외 변수 e를
                      참조하던 곳 2군데(시작 시 상태 갱신 실패, 중복 정책 재검사
                      실패)를 e=e로 묶어, 오류 안내 대신 NameError가 나던 문제 수정.
+2026-10-04 Ver9.31:  ⓪ 사전스크리닝(Gemini용) 프롬프트 V2와 맞춤. 이 프롬프트는
+                     확장자로 작업을 나눠 PDF는 공식 자료(작업 A), MD는 경쟁 블로그
+                     (작업 B)로 읽는데, 프로그램의 복사·첨부 안내 문구는 "경쟁 블로그
+                     샘플 PDF를 직접 준비"라고 해 안내대로 하면 블로그가 공식 자료로
+                     섞였다. 안내 문구 5곳(⓪ 패키지, ⓪+① 패키지, 로그, 첨부 알림
+                     팝업 2개)을 "'블로그 스크랩' 탭으로 저장한 MD"로 바꿨다. 기능
+                     변화는 없다.
 """
 
 import sys
@@ -5754,9 +5761,8 @@ def build_prescreening_value_combo_package(detail: dict, source: str, serv_id: s
     parts.append(format_attachments_for_prompt(attachments or []))
     parts.append("")
     parts.append("(참고) 공식 첨부자료 PDF와 함께, 같은 키워드로 검색했을 때 상위 노출되는 "
-                  "경쟁 블로그 샘플 PDF(2~5개 정도)도 준비해서 이 대화에 첨부하면 이 프롬프트가 "
-                  "[사전 스캔 절차] B(경쟁 블로그 구조 분석)까지 함께 수행합니다. 경쟁 블로그 PDF는 "
-                  "이 프로그램이 자동 수집하지 않으므로 직접 준비해야 합니다.")
+                  "경쟁 블로그 샘플 MD(2~5개 정도, '블로그 스크랩' 탭으로 URL을 넣어 저장)도 이 대화에 "
+                  "첨부하면 이 프롬프트가 [사전 스캔 절차] B(경쟁 블로그 구조 분석)까지 함께 수행합니다.")
     parts.append("")
 
     history = build_publish_history_note(serv_id)   # [Ver9.30] 자기잠식 확인용
@@ -5776,7 +5782,7 @@ def build_prescreening_value_combo_package(detail: dict, source: str, serv_id: s
 def build_prescreening_prompt_package(row: dict, attachments: list = None, instructions_text: str = None) -> str:
     """⓪ 사전스크리닝 프롬프트 + 첨부파일 안내를 하나로 묶는다. 이 단계는
     detail.json의 텍스트 필드가 아니라 PDF 원문(공식 첨부자료 PDF +
-    경쟁 블로그 샘플 PDF)을 Gemini/Claude 대화창에 직접 첨부해서 분석하는
+    경쟁 블로그 샘플 MD)을 Gemini/Claude 대화창에 직접 첨부해서 분석하는
     방식이라, 여기서는 "어떤 파일을 챙겨서 첨부해야 하는지" 안내만 자료로
     함께 붙인다(원문 텍스트 자체는 넣지 않음). instructions_text를 넘기면
     그 프롬프트 문구를 쓴다(현재는 Gemini 전용 버전이 이 방식으로 호출).
@@ -5797,9 +5803,11 @@ def build_prescreening_prompt_package(row: dict, attachments: list = None, instr
         parts.append("- 이 서비스는 attachments 폴더에 공식 첨부자료가 없습니다. "
                       "원문(지원대상/선정기준/혜택/신청방법)만으로는 [작업 A]를 진행할 "
                       "자료가 부족할 수 있으니, 사업안내/지침 PDF를 직접 구해 첨부하는 걸 권장합니다.")
-    parts.append("- 경쟁 블로그 샘플 PDF(2~5개 정도, 같은 키워드로 검색했을 때 상위 노출되는 "
-                  "블로그 글을 캡처/인쇄한 PDF)는 이 프로그램이 자동 수집하지 않으므로 직접 "
-                  "준비해 함께 첨부해주세요.")
+    # [Ver9.31] Gemini용 프롬프트는 확장자로 작업을 나눈다(PDF = 작업 A 공식 자료,
+    # MD = 작업 B 경쟁 블로그). 예전 안내대로 블로그를 PDF로 붙이면 작업 A로 섞였다.
+    parts.append("- 경쟁 블로그 샘플 MD(2~5개 정도, 같은 키워드로 검색했을 때 상위 노출되는 "
+                  "블로그 글 — '블로그 스크랩' 탭에 URL을 넣어 .md로 저장한 파일)도 함께 "
+                  "첨부해주세요. 블로그를 PDF로 첨부하면 공식 자료(작업 A)로 섞이니 MD로 첨부합니다.")
 
     return "\n".join(parts)
 
@@ -5986,7 +5994,7 @@ def get_unresolved_related_lcgv_ids(row: dict, rows_by_id: dict = None) -> list:
 
 # ============================================================
 # ⑤ 블로그 스크랩 탭 — naver_blog_scraper.py(독립 프로그램) 이식.
-#   퍼플렉시티(⓪ 사전스크리닝)가 "경쟁 블로그 샘플"로 참조할 상위노출
+#   ⓪ 사전스크리닝(Gemini)이 "경쟁 블로그 샘플"로 참조할 상위노출
 #   블로그 게시글을 URL만으로 마크다운(.md)으로 저장해두는 용도. 외부
 #   모듈 파일로 분리하지 않고, 이 프로그램 안에 함수/클래스를 그대로
 #   심었다(요청사항) — 별도 .py 파일 배포/경로 관리 없이 이 GUI
@@ -6300,7 +6308,7 @@ class WelfareCollectorGUI(tk.Tk):
         # 메인 창으로 바뀌는 현상(초기 렌더링 중간 상태 노출)이 사라진다.
         self.withdraw()
 
-        self.title("복지로 정책 수집한 후 Claude로 각색 및 인포그래픽 설계하는 프로그램_2026-10-03_Ver 9.30")
+        self.title("복지로 정책 수집한 후 Claude로 각색 및 인포그래픽 설계하는 프로그램_2026-10-04_Ver 9.31")
 
         self.log_queue = queue.Queue()
         self.stop_event = threading.Event()
@@ -7331,7 +7339,7 @@ class WelfareCollectorGUI(tk.Tk):
                    command=self._history_mark_deleted).pack(side="left", padx=(8, 0))
 
         # ---- 블로그 스크랩 탭 ----
-        # ⓪ 사전스크리닝(Perplexity)이 참조할 "경쟁 블로그 샘플"을 URL만
+        # ⓪ 사전스크리닝(Gemini)이 참조할 "경쟁 블로그 샘플"을 URL만
         # 넣으면 마크다운(.md)으로 저장해두는 탭. naver_blog_scraper.py
         # 독립 프로그램을 그대로 이식(외부 모듈 파일 분리 없이 내부 함수/
         # 로직으로 심음).
@@ -9729,14 +9737,13 @@ class WelfareCollectorGUI(tk.Tk):
         self.clipboard_clear()
         self.clipboard_append(package)
         self._log(f"📋 ⓪+①(Claude 올인원) 프롬프트 복사 완료: {row['servNm']} (첨부 {len(attachments)}건 — "
-                  f"경쟁 블로그 PDF는 직접 준비해 함께 첨부하세요)")
+                  f"경쟁 블로그는 '블로그 스크랩' 탭으로 저장한 MD를 함께 첨부하세요)")
 
         self._show_attachment_reminder_popup(
             row, attachments,
             note_extra="공식 첨부 서식자료뿐 아니라, 같은 키워드 상위 노출 경쟁 블로그 샘플 "
-                        "PDF(2~5개 정도)도 함께 첨부하면 이 프롬프트가 [사전 스캔 절차] B까지 "
-                        "한 번에 처리합니다(경쟁 블로그 PDF는 이 프로그램이 자동 수집하지 않으므로 "
-                        "직접 준비해야 합니다).")
+                        "MD(2~5개 정도, '블로그 스크랩' 탭으로 저장)도 함께 첨부하면 이 프롬프트가 "
+                        "[사전 스캔 절차] B까지 한 번에 처리합니다.")
 
         if advance_posting_status(row["servId"], "🔎 가치판단대기", row["servNm"], row["source"]):
             self._refresh_posting_tree()
@@ -9811,8 +9818,9 @@ class WelfareCollectorGUI(tk.Tk):
         attach_list = list_attachment_files(row["folder"])
         self._show_attachment_reminder_popup(
             row, attach_list,
-            note_extra="경쟁 블로그 샘플 PDF(2~5개, 같은 키워드 상위 노출 블로그)는 이 프로그램이 "
-                        "자동 수집하지 않으므로 직접 준비해서 함께 첨부하세요.")
+            note_extra="경쟁 블로그 샘플은 '블로그 스크랩' 탭으로 저장한 MD(2~5개, 같은 키워드 상위 "
+                        "노출 블로그)로 함께 첨부하세요. PDF로 첨부하면 Gemini가 공식 자료(작업 A)로 "
+                        "섞어 읽습니다.")
 
         if advance_posting_status(row["servId"], "🔦 사전스크리닝중", row["servNm"], row["source"]):
             self._refresh_posting_tree()
