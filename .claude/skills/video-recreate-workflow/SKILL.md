@@ -112,6 +112,8 @@ description: "참고 영상을 새 캐릭터/장소로 재현: 영상분석→�
 
 - 인물이 경계선(문턱 등) 앞에서 멈추거나 물러서야 하는 장면: 시작 이미지가 걷는 중이면 Wan은 관성대로 계속 걸어 들어간다. "stops dead at the threshold, never takes another step forward, both feet stay behind the threshold the whole time"와 "recoils backward"를 시간 순서대로 쓰고, Avoid에 `stepping onto the poster`, `walking into the elevator`, `feet crossing the threshold`를 넣는다. 프롬프트에 "steps onto"처럼 전진 동사를 쓰지 않는다. 장면의 동기(예: 안 들어가려고 발버둥)를 프롬프트 첫 문장에 적는다.
 
+- 프롬프트로 막아도 Wan이 경계선을 넘었다 돌아오면(K6 v1·v2: 문턱을 넘어 포스터에 섰다가 다시 나감) 프롬프트를 더 고치지 말고, 원본에서 그 사이 순간(예: 문턱 뒤에서 몸을 젖히는 10.13초)을 중간 키프레임 이미지로 만들어 클립을 둘로 나눈다(K{n}a: 시작→중간, K{n}b: 중간→끝). 중간 이미지도 3단계 방식으로 만든다.
+
 ### 얼굴색(홍조) 처리 원칙
 - 영상 모델은 클립 안에서 색을 서서히 바꾸지 못하고 끝 부근에서 점처럼 팍 생긴다. 한 클립 안에서는 시작·끝 이미지의 얼굴색 단계를 동일하게 하고 프롬프트에 "색 변화 없음"을 명시한다.
 - 색 단계(흰색→연한 분홍→진한 분홍·빨강)가 바뀌는 곳은 다음 클립 시작 이미지를 편집해 만들고, 합본 때 얼굴 영역만 마스크로 느리게 디졸브하고 나머지는 빠르게 전환한다.
