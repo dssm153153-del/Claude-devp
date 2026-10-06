@@ -73,6 +73,7 @@ out.append("\nREPEATS (shot start matched elsewhere, diff<8):")
 for k in range(len(bounds) - 1):
     i = bounds[k]
     cand = [(float(np.abs(F[i] - F[j]).mean()), j) for j in range(len(F)) if not (bounds[k] <= j < bounds[k + 1])]
+    if not cand: continue
     d, j = min(cand)
     if d < 8:
         L = bounds[k + 1] - bounds[k]
