@@ -134,6 +134,15 @@ description: "참고 영상을 새 캐릭터/장소로 재현: 영상분석→�
 
 - 영상 생성 전 시작·끝 이미지를 반드시 겹쳐 비교한다(같은 격자, 윤곽선 오버레이, 배경 ECC 정렬). 인물의 깊이(발 높이·몸 크기)와 카메라 배율이 다르면 Wan은 그 차이를 이동으로 채운다. 예: 시작은 걷는 중에 문턱을 밟고 있고 끝은 반걸음 뒤에 서 있으면, 관성대로 들어갔다가 뒤로 나오는 영상이 된다(K6 v1·v2·K6a-v1 실패). 해결: 끝 이미지와 같은 깊이에 있는 시작 프레임(K{n-1}의 더 이른 프레임)을 골라 K{n-1}-Last로 삼고, 배경은 ECC로 정렬한 보정본(-aligned)을 쓴다.
 
+### Freepik 공식 튜토리얼 프롬프트 구조 (work/freepik-tutorial/analysis.md)
+- 모델: Kling O1(Start/End image 지원), 해상도 1080, 길이 5"/10". Kling 2.6 Motion Control은 Start image + 참조 영상으로 동작을 그대로 복사(원본 영상의 동작 재현에 유력 — 다음 프로젝트에서 시험).
+- 영상 프롬프트는 4부 구조로 쓴다:
+  1) 한 줄 요약: 누가, 어디서, 무엇을 하고, 어떻게 끝나는가.
+  2) 동작 문단: 인물 외형 + 동작을 시간 순서로, 태도 형용사(calm confidence 등). End image가 있으면 마지막 문장을 "… — matching the End Image composition."으로 끝낸다.
+  3) 카메라 문단: 무브 이름(slow dolly-in, follows behind 등), 시작→끝 위치, 속도, 끝 프레임 구도. 고정 카메라면 "Static locked-off camera, no movement."
+  4) 유지 문단: Same location, same lighting, same time of day, consistent realism. 핵심 배경 요소 나열. No new objects, no style changes.
+- 튜토리얼은 Avoid 목록을 쓰지 않는다. 긴 Avoid 목록보다 유지 문단과 짧은 "No …"가 우선. 단, Wan처럼 금지가 필요했던 동작(문턱 넘기 등)은 동작 문단에 긍정형으로 쓴다("both feet stay behind the threshold").
+
 ### 얼굴색(홍조) 처리 원칙
 - 영상 모델은 클립 안에서 색을 서서히 바꾸지 못하고 끝 부근에서 점처럼 팍 생긴다. 한 클립 안에서는 시작·끝 이미지의 얼굴색 단계를 동일하게 하고 프롬프트에 "색 변화 없음"을 명시한다.
 - 색 단계(흰색→연한 분홍→진한 분홍·빨강)가 바뀌는 곳은 다음 클립 시작 이미지를 편집해 만들고, 합본 때 얼굴 영역만 마스크로 느리게 디졸브하고 나머지는 빠르게 전환한다.
