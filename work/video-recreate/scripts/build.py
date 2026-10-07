@@ -80,23 +80,25 @@ def insert_frames(path):
 # Segments whose camera/colour drift from the previous clip: aligned (ECC affine on background)
 # and colour-matched (LAB mean/std) to the last frame of REF, for all frames of the group.
 CORRECT = {"ref": "K5b", "group": ["K6a", "K6b"]}
-MORPH = {"K6a"}   # seams done with optical-flow morph instead of plain dissolve
+MORPH = set()   # seams done with optical-flow morph instead of plain dissolve
 
 
 def correction(ref, first):
-    g = lambda im: cv2.cvtColor(cv2.resize(im, (360, 640)), cv2.COLOR_BGR2GRAY).astype(np.float32)
-    a, b = g(ref), g(first)
-    m = np.ones_like(a, np.uint8); m[40:440, 100:300] = 0
-    w = np.eye(2, 3, dtype=np.float32)
-    _, w = cv2.findTransformECC(a, b, w, cv2.MOTION_AFFINE, (3, 300, 1e-7), m, 5)
-    w[0, 2] *= W / 360; w[1, 2] *= H / 640
+    """Non-rigid background lock: dense flow from ref (last frame of previous clip) to first frame of
+    this clip, heavily smoothed, plus LAB colour match. Two independently generated plates differ by
+    small local offsets everywhere (door frame, handle, poster lines), which an affine fit cannot fix."""
+    dis = cv2.DISOpticalFlow_create(cv2.DISOPTICAL_FLOW_PRESET_MEDIUM)
+    fl = dis.calc(cv2.cvtColor(ref, cv2.COLOR_BGR2GRAY), cv2.cvtColor(first, cv2.COLOR_BGR2GRAY), None)
+    fl = cv2.GaussianBlur(fl, (0, 0), 8)
+    yy, xx = np.mgrid[0:H, 0:W].astype(np.float32)
+    mx, my = xx + fl[..., 0], yy + fl[..., 1]
+    warp = lambda im: cv2.remap(im, mx, my, cv2.INTER_CUBIC, borderMode=cv2.BORDER_REPLICATE)
     la = cv2.cvtColor(ref, cv2.COLOR_BGR2LAB).reshape(-1, 3).astype(np.float32)
-    lb = cv2.cvtColor(cv2.warpAffine(first, w, (W, H), flags=cv2.WARP_INVERSE_MAP), cv2.COLOR_BGR2LAB).reshape(-1, 3).astype(np.float32)
+    lb = cv2.cvtColor(warp(first), cv2.COLOR_BGR2LAB).reshape(-1, 3).astype(np.float32)
     ma, sa, mb, sb = la.mean(0), la.std(0), lb.mean(0), lb.std(0)
 
     def apply(im):
-        im = cv2.warpAffine(im, w, (W, H), flags=cv2.INTER_CUBIC | cv2.WARP_INVERSE_MAP, borderMode=cv2.BORDER_REPLICATE)
-        l = cv2.cvtColor(im, cv2.COLOR_BGR2LAB).astype(np.float32)
+        l = cv2.cvtColor(warp(im), cv2.COLOR_BGR2LAB).astype(np.float32)
         l = (l - mb) * (sa / sb) + ma
         return cv2.cvtColor(np.clip(l, 0, 255).astype(np.uint8), cv2.COLOR_LAB2BGR)
     return apply
