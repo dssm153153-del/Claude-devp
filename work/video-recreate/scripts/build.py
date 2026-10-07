@@ -77,16 +77,60 @@ def insert_frames(path):
     return out
 
 
+# Segments whose camera/colour drift from the previous clip: aligned (ECC affine on background)
+# and colour-matched (LAB mean/std) to the last frame of REF, for all frames of the group.
+CORRECT = {"ref": "K5b", "group": ["K6a", "K6b"]}
+MORPH = {"K6a"}   # seams done with optical-flow morph instead of plain dissolve
+
+
+def correction(ref, first):
+    g = lambda im: cv2.cvtColor(cv2.resize(im, (360, 640)), cv2.COLOR_BGR2GRAY).astype(np.float32)
+    a, b = g(ref), g(first)
+    m = np.ones_like(a, np.uint8); m[40:440, 100:300] = 0
+    w = np.eye(2, 3, dtype=np.float32)
+    _, w = cv2.findTransformECC(a, b, w, cv2.MOTION_AFFINE, (3, 300, 1e-7), m, 5)
+    w[0, 2] *= W / 360; w[1, 2] *= H / 640
+    la = cv2.cvtColor(ref, cv2.COLOR_BGR2LAB).reshape(-1, 3).astype(np.float32)
+    lb = cv2.cvtColor(cv2.warpAffine(first, w, (W, H), flags=cv2.WARP_INVERSE_MAP), cv2.COLOR_BGR2LAB).reshape(-1, 3).astype(np.float32)
+    ma, sa, mb, sb = la.mean(0), la.std(0), lb.mean(0), lb.std(0)
+
+    def apply(im):
+        im = cv2.warpAffine(im, w, (W, H), flags=cv2.INTER_CUBIC | cv2.WARP_INVERSE_MAP, borderMode=cv2.BORDER_REPLICATE)
+        l = cv2.cvtColor(im, cv2.COLOR_BGR2LAB).astype(np.float32)
+        l = (l - mb) * (sa / sb) + ma
+        return cv2.cvtColor(np.clip(l, 0, 255).astype(np.uint8), cv2.COLOR_LAB2BGR)
+    return apply
+
+
+DIS = cv2.DISOpticalFlow_create(cv2.DISOPTICAL_FLOW_PRESET_MEDIUM)
+
+
+def morph(a, b, al):
+    ga, gb = cv2.cvtColor(a, cv2.COLOR_BGR2GRAY), cv2.cvtColor(b, cv2.COLOR_BGR2GRAY)
+    fab = DIS.calc(ga, gb, None); fba = DIS.calc(gb, ga, None)
+    yy, xx = np.mgrid[0:H, 0:W].astype(np.float32)
+    wa = cv2.remap(a, xx + fba[..., 0] * al, yy + fba[..., 1] * al, cv2.INTER_LINEAR, borderMode=cv2.BORDER_REPLICATE)
+    wb = cv2.remap(b, xx + fab[..., 0] * (1 - al), yy + fab[..., 1] * (1 - al), cv2.INTER_LINEAR, borderMode=cv2.BORDER_REPLICATE)
+    return cv2.addWeighted(wa, 1 - al, wb, al, 0)
+
+
 def main(version):
     built = {}
     stream = []
     for name, path, a, b, sp, xf in SEGMENTS:
         fr = insert_frames(path) if name == "I7" else clip_frames(path, a, b, sp)
+        if name == CORRECT["group"][0]:
+            fix = correction(built[CORRECT["ref"]][-1], fr[0])
+        if name in CORRECT["group"]:
+            fr = [fix(f) for f in fr]
         built[name] = fr
         if xf and stream:
             for k in range(xf):
                 al = (k + 1) / (xf + 1)
-                stream[-xf + k] = cv2.addWeighted(stream[-xf + k], 1 - al, fr[k], al, 0)
+                if name in MORPH:
+                    stream[-xf + k] = morph(stream[-xf + k], fr[k], al)
+                else:
+                    stream[-xf + k] = cv2.addWeighted(stream[-xf + k], 1 - al, fr[k], al, 0)
             fr = fr[xf:]
         if name == TEASER[0]:
             teaser_at = len(stream) - xf
