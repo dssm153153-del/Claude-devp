@@ -9,3 +9,17 @@
   - 끝까지 당하는 쪽(원본 놀림 대상, 오른쪽 큰 인물): 고릴라 (마지막에 장난꾼을 잡으려다 끈에 엉켜 묶임, 다람쥐는 옆에서 깔깔)
   - 장소: 원본과 같은 나무 아래 공터 (Motion Control 구도 일치)
 - 다음 단계: 캐릭터 확정 컨펌 → 2단계 스토리보드(씬별 모델: 동작 씬은 Kling 2.6 Motion Control)
+
+## 현재 진행 상황 (세션 이동용)
+- 완료: 1단계 분석, 컨셉 확정, 스토리보드 v1(analysis/storyboard.md), 참조 영상 ref/Motion-K1~K3.mp4, 원본 컷 첫 프레임 ref/Shot1~3-first.png
+- 사용자에게 이미 보낸 파일: ref/Shot1-first.png, ref/Motion-K1.mp4 (다시 보내지 않아도 됨)
+- 지금: **C1-Start 이미지(GPT) 생성 대기** — 첨부: Shot1-first. 프롬프트:
+
+```
+Use the attached image only for the composition, camera angle, framing, lighting and background. Recreate this exact scene as a photorealistic photo, keeping every position, pose, gesture and the background identical (the tree, the stone wall, the grass and dirt ground, the white plastic chairs), but replace the three people with three anthropomorphic animals wearing the same clothes, in the same seats and the same poses:
+- Left (sitting, holding up a plastic water bottle over the right character's head with a mischievous grin): a small red squirrel, clearly the smallest of the three, child-sized, upright like a person, fluffy tail, wearing a black buttoned tunic suit.
+- Middle (sitting, looking on): a large brown bear wearing a dark puffer jacket over a blue hoodie and jeans.
+- Right (sitting, the biggest, calm and unaware): a huge silverback gorilla in a navy suit, white shirt and long red tie.
+Realistic fur, realistic lighting, natural outdoor daylight, same 1:1 square framing. No humans, no text, no logo, no watermark.
+```
+- 다음: C1-Start 검수 → K1 Motion Control(Start image=C1-Start, Video=Motion-K1.mp4, 짧은 프롬프트) 시험 → 결과 보고 K2·K3.
