@@ -16,8 +16,9 @@ SEGMENTS = [
     ("K2",   "clips/K2.mp4",      27,  99, 1.3, 0),
     ("K3",   "clips/K3.mp4",       0,  87, 1.8, 0),
     ("K4",   "clips/K4.mp4",       0,  45, 1.6, 0),
-    ("K5",   "clips/K5.mp4",      18, 102, 1.6, 0),
-    ("K6a",  "clips/K6a.mp4",     22,  38, 1.1, 4),
+    ("K5",   "clips/K5.mp4",      18,  98, 1.6, 0),
+    ("K5b",  "clips/K5b.mp4",      1,  56, 1.8, 0),   # bridge: last step, stops behind threshold
+    ("K6a",  "clips/K6a.mp4",      0,  38, 1.4, 6),
     ("K6b",  "clips/K6b.mp4",      7,  54, 1.4, 3),
     ("I7",   "images/C7-Insert.png", 0, 0, 1.0, 0),   # 1.8 s still with slow push-in + handheld shake
     ("K8",   "clips/K8.mp4",       0,  84, 1.4, 0),
