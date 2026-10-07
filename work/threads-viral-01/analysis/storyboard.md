@@ -4,7 +4,7 @@
 
 | 클립 | 원본(초) | 내용 | 시작 이미지 | 참조 영상 | 모델 | 길이 |
 |---|---|---|---|---|---|---|
-| K1 | 0.00-4.80 | 여우가 굽힌 팔로 물병을 얼굴 앞→자기 이마로 가져가 병 입구로 고릴라 얼굴에 물 뿜기 → 고릴라 얼굴 감싸기 → 곰 벌떡 도망 | C1-Start-v3 (ref/Shot1-first 기반, 상반신 분리, 굽힌 팔) | ref/Motion-K1.mp4 (4.8s) | Kling 2.6 Motion Control | 4.8초(참조 영상 길이) |
+| K1 | 0.00-4.80 | 여우가 굽힌 팔로 물병을 얼굴 앞→자기 이마로 가져가 병 입구로 고릴라 얼굴에 물 뿜기 → 고릴라 얼굴 감싸기 → 곰 벌떡 도망 | C1-Start-v6 (ref/Shot1-first 기반 새로 생성, 상반신 분리) | ref/Motion-K1.mp4 (4.8s) | Kling 2.6 Motion Control | 4.8초(참조 영상 길이) |
 | K2 | 4.84-5.79 | 여우와 고릴라가 마주 앉아 손 내밀다 엎치락뒤치락 | C2-Start (ref/Shot2-first 기반) | ref/Motion-K2.mp4 (원본 0.95s를 3.2배 느리게 = 3.0s, 최소 길이 3초 때문) | Kling 2.6 Motion Control | 3초 → 합본 때 3.2배속 |
 | K3 | 5.81-9.13 | 서서 실랑이 → 끈에 엉킴 → 황당 | C3-Start (ref/Shot3-first 기반) | ref/Motion-K3.mp4 (3.3s) | Kling 2.6 Motion Control | 3~4초 |
 
