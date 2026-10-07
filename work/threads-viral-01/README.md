@@ -11,7 +11,7 @@
 - 다음 단계: 캐릭터 확정 컨펌 → 2단계 스토리보드(씬별 모델: 동작 씬은 Kling 2.6 Motion Control)
 
 ## 현재 진행 상황 (세션 이동용)
-- 2026-10-07: C1-Start(다람쥐, 꽉 찬 구도) → Freepik 상반신 감지 실패. C1-Start-v2(여우, 넓은 구도) → 팔을 곧게 높이 든 포즈가 원본(굽힌 팔, 얼굴 앞)과 달라 불합격. Freepik 미리보기 clips/K1-preview.mp4(3.2s)는 C1-Start(다람쥐) 기반으로, 원본 동작을 따르지 않음. 다음: C1-Start-v3.
+- 2026-10-07: C1-Start(다람쥐, 꽉 찬 구도) → Freepik 상반신 감지 실패. C1-Start-v2(여우, 넓은 구도) → 팔을 곧게 높이 든 포즈가 원본(굽힌 팔, 얼굴 앞)과 달라 불합격. Freepik 미리보기 clips/K1-preview.mp4(3.2s)는 C1-Start(다람쥐) 기반으로, 원본 동작을 따르지 않음. C1-Start-v3(여우, 굽힌 팔·얼굴 앞 물병, 원본 거리) 통과 → K1 Motion Control 시험.
 - 완료: 1단계 분석, 컨셉 확정, 스토리보드 v1(analysis/storyboard.md), 참조 영상 ref/Motion-K1~K3.mp4, 원본 컷 첫 프레임 ref/Shot1~3-first.png
 - 사용자에게 이미 보낸 파일: ref/Shot1-first.png, ref/Motion-K1.mp4 (다시 보내지 않아도 됨)
 - 지금: **C1-Start 이미지(GPT) 생성 대기** — 첨부: Shot1-first. 프롬프트:
