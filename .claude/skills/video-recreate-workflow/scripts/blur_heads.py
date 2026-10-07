@@ -1,7 +1,8 @@
 import sys, cv2, numpy as np, mediapipe as mp
 from mediapipe.tasks import python as mpt
 from mediapipe.tasks.python import vision as V
-M='/tmp/claude-0/-home-user-Claude-devp/eea064a2-5e3f-5b7b-b9ad-c5d09aeca779/scratchpad/models/'
+import os
+M=os.environ.get('MP_MODELS','models')+'/'  # face.tflite = blaze_face_short_range, pose.task = pose_landmarker_full
 src,dst=sys.argv[1],sys.argv[2]
 pose=V.PoseLandmarker.create_from_options(V.PoseLandmarkerOptions(base_options=mpt.BaseOptions(model_asset_path=M+'pose.task'),running_mode=V.RunningMode.VIDEO,num_poses=3,min_pose_detection_confidence=0.3,min_tracking_confidence=0.3))
 face=V.FaceDetector.create_from_options(V.FaceDetectorOptions(base_options=mpt.BaseOptions(model_asset_path=M+'face.tflite'),min_detection_confidence=0.3))
