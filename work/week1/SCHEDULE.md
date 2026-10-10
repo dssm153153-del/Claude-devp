@@ -5,7 +5,7 @@
 
 | 날짜 | 시간 | 종류 | 콘텐츠 | 파일 | 상태 |
 |---|---|---|---|---|---|
-| 10/11 일 | 09:00 | 꿀팁 | 계란 껍질 컵 흔들기 | work/tip-posts/egg/Egg-Final.mp4 | ✅ |
+| 10/11 일 | 09:00 | 꿀팁 | 계란 껍질 컵 흔들기 (직접 촬영) | work/tip-posts/egg-real/Egg-real-Final.mp4 | ✅ |
 | 10/11 일 | 12:30 | 퀴즈 | 1=5 … 5=? | work/week1/Quiz-03-one-equals-five.png | ✅ |
 | 10/11 일 | 19:00 | 텍스트 | 월요병 공감 | (글만) | ✅ |
 | 10/12 월 | 07:40 | **홍보** | 스카프 1차 | work/eunchae-video/final/Final-v5.mp4 + images/C6-Threads.png | ✅ |
