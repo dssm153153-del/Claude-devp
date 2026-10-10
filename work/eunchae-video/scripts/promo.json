@@ -1,0 +1,9 @@
+{"clips":[{"file":"clips/K1-v2.mp4","src_len":3.6},
+          {"file":"clips/K2-v2.mp4","src_len":2.133,"crop":"1080:1920:180:0"},
+          {"file":"clips/K4.mp4","src_len":3.05}],
+ "xfade":{"after":1,"dur":0.2,"type":"smoothleft"},
+ "final_image":"images/C5.png","hold":1.2,
+ "music":{"file":"audio/A1-Music-v2.mp3","offset":12.57,"fade_out":0.7},
+ "sfx":[{"file":"audio/A2-Whoosh.mp3","trim":[0,0.45],"at":5.26,"vol":0.7},
+        {"file":"audio/A3-Sparkle.mp3","trim":[0,1.2],"at":8.4,"vol":0.6}],
+ "watermark":"@pathtorich7"}
