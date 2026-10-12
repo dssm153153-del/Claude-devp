@@ -1,5 +1,5 @@
 """초보운전 스티커 슬라이드 영상. python3 -I build_slides.py  (work/week2/video에서 실행)
-1080x1350(4:5) 30fps. 장당 1.34초(112BPM 2.5박) 천천히 줌인, 컷마다 0.15초 밀기 전환 + 휙,
+1080x1350(4:5) 30fps. 장당 1.607초(112BPM 3박) 천천히 줌인, 컷마다 0.25초 밀기 전환 + 휙,
 끝 카드 "몇 번이 제일 웃김?" 2초, 워터마크 @pathtorich7.
 """
 import subprocess
@@ -7,11 +7,11 @@ import numpy as np
 from PIL import Image, ImageDraw, ImageFilter, ImageFont
 
 W, H, FPS = 1080, 1350, 30
-PER, TR, END = 1.34, 0.15, 2.0
+PER, TR, END = 1.607, 0.25, 2.0
 KO = '/usr/share/fonts/truetype/wqy/wqy-zenhei.ttc'
 EN = '/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf'
 AUD = '../../eunchae-video/audio/'
-MUSIC, MUSIC_OFF, WHOOSH, WHOOSH_PEAK, SPARKLE = AUD + 'A1-Music-v2.mp3', 5.97, AUD + 'A2-Whoosh.mp3', 0.17, AUD + 'A3-Sparkle.mp3'
+MUSIC, MUSIC_OFF, WHOOSH, WHOOSH_PEAK, SPARKLE = AUD + 'A1-Music-v2.mp3', 6.27, AUD + 'A2-Whoosh.mp3', 0.17, AUD + 'A3-Sparkle.mp3'
 FILES = ['Sticker-V1.png', 'Sticker-V2.png', 'Sticker-V3.png', '../Sticker-AI-02-raw.png', 'Sticker-V4.png',
          'Sticker-V5.png', 'Sticker-V6.png', 'Sticker-V7.png', 'Sticker-V8.png', '../Sticker-AI-01-raw.png']
 IW, IH = 1080, 810  # 4:3 슬롯
@@ -125,5 +125,5 @@ fil.append(f'[{len(cuts) + 1}:a]atrim=0:1.2,volume=0.6,adelay={ms}|{ms}[s]')
 mix.append('[s]')
 fil.append(''.join(mix) + f'amix=inputs={len(mix)}:normalize=0,alimiter=limit=0.9[a]')
 subprocess.run(['ffmpeg', '-loglevel', 'error', '-y', *inputs, '-filter_complex', ';'.join(fil), '-map', '0:v', '-map', '[a]',
-                '-c:v', 'copy', '-c:a', 'aac', '-b:a', '192k', '-shortest', 'Sticker-Slides-v1.mp4'], check=True)
-print('Sticker-Slides-v1.mp4', round(TOTAL, 2), 's')
+                '-c:v', 'copy', '-c:a', 'aac', '-b:a', '192k', '-shortest', 'Sticker-Slides-v2.mp4'], check=True)
+print('Sticker-Slides-v2.mp4', round(TOTAL, 2), 's')
