@@ -1,6 +1,6 @@
 """물속 귤 v3. python3 -I build3.py (work/week3/next5)
 아이 3명(초록 3.87–8.4 1.8x / 오프로드 15.03–16.73 1.2x / 물 넘침 9.0–11.97 1.15x), 얼굴은 고정 흐림 박스,
-문구 카드 1.4초, 직촬 0.5–7.9 1.25x. 자막 NanumSquare ExtraBold 큰 글씨 + 두꺼운 외곽선.
+문구 카드 2.5초, 직촬 0.5–7.9 1.25x. 자막 NanumSquare ExtraBold 큰 글씨 + 두꺼운 외곽선.
 """
 import subprocess
 FONT = '/usr/share/fonts/truetype/nanum/NanumSquareEB.ttf'
@@ -27,10 +27,10 @@ for i, (a, b, s, boxes) in enumerate(KIDS):
     fc.append(f"[{base}]scale=1080:1920:flags=lanczos,setsar=1[K{i}]")
     labels.append(f"[K{i}]")
 fc.append("".join(labels) + f"concat=n={len(KIDS)}:v=1:a=0," + T('물 한 방울도 안 넘치게', 170) + "," + T('귤 꺼내기 도전', 290) + ",split[A][Alast]")
-fc.append("[Alast]reverse,trim=0:0.04,setpts=PTS-STARTPTS,loop=loop=42:size=1:start=0,boxblur=25,eq=brightness=-0.2,"
+fc.append("[Alast]reverse,trim=0:0.04,setpts=PTS-STARTPTS,loop=loop=74:size=1:start=0,boxblur=25,eq=brightness=-0.2,"
           + T('애들은 다', 760, 104) + "," + T('물 넘쳐서 실패', 890, 104) + "," + T('그래서 직접 해봄', 1060, 104) + "[B]")
 fc.append("[1:v]trim=0.5:7.9,setpts=(PTS-STARTPTS)/1.25,scale=1080:1920:flags=lanczos,fps=30,setsar=1[C]")
 fc.append("[A][B][C]concat=n=3:v=1:a=0," + WM + ",format=yuv420p[v]")
 subprocess.run(['ffmpeg', '-loglevel', 'error', '-y', '-i', 'ref/Src.mp4', '-i', 'ref/My.mp4', '-filter_complex', ";".join(fc),
-                '-map', '[v]', '-c:v', 'libx264', '-crf', '17', 'final/Jar-Draft-v3.mp4'], check=True)
-print('final/Jar-Draft-v3.mp4')
+                '-map', '[v]', '-c:v', 'libx264', '-crf', '17', 'final/Jar-Draft-v4.mp4'], check=True)
+print('final/Jar-Draft-v4.mp4')
