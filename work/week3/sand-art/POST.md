@@ -1,5 +1,5 @@
 # 쓰레드 글 (홍보 전용 글)
-업로드: final/Sand-Final-v3.mp4 (4:5, 13.2초, 잔잔한 음악, 끝 1.6초 검정 테두리 전신 컷) + images/Sand-Still-v2.png(검정 테두리, 워터마크)
+업로드(게시 완료): final/Sand-Final-v2.mp4 (4:5, 13.2초, 흰 테두리 전신 컷) + images/Sand-Still.png(흰 테두리, 워터마크) — 흰색 판매자 링크
 
 멍때리다 30분 날아가는 모래 액자 ㄷㄷ
 
