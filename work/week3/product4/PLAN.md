@@ -15,3 +15,4 @@
 - 제작: GPT Start → GPT End(Start 편집) → Kling O1 Start/End 5초. 날개 상태 변화 없음 → Mid 불필요.
 - 소리: 밤 산책 환경음 + 작은 반짝 효과음 or 잔잔한 음악. 글: 질문 없이 단정.
 - Dog-Start.png(941x1672): 통과(날개 레이스·진주·LED 실물과 일치, 앞다리·털 자연스러움). 단 강아지가 가까워 '멀리서 빛이 다가옴' 훅이 안 됨 → 이 이미지를 Kling 끝 이미지로 쓰고, 같은 장면에서 강아지만 멀리 둔 Dog-Far.png를 시작 이미지로 만든다.
+- Dog-Far.png: 통과. Dog-Start와 차이 마스크 = 강아지 자리뿐(배경 고정), 먼 거리·흐린 초점에 날개 LED만 반짝. 다음: Kling O1 Start=Dog-Far → End=Dog-Start 5초 → Dog-K1.mp4
