@@ -22,3 +22,15 @@ subprocess.run(['ffmpeg', '-loglevel', 'error', '-y', '-i', 'final/Sand-Draft-v1
                 '-filter_complex', f"[1:a]atrim=0:{D},asetpts=PTS-STARTPTS,afade=t=in:d=0.3,afade=t=out:st={D-1}:d=1,volume=0.9,alimiter=limit=0.9[a]",
                 '-map', '0:v', '-map', '[a]', '-c:v', 'copy', '-c:a', 'aac', '-b:a', '192k', '-t', str(D), 'final/Sand-Final-v1.mp4'], check=True)
 print('final/Sand-Final-v1.mp4')
+
+# v2: 전신이 안 보여서 끝에 GPT 생활 사진(Sand-Still-gen.png) 1.6초 엔드카드(1.08→1.0 줌아웃) 추가, 음악 같은 오프셋으로 13.2초
+END = 1.6
+D2 = 11.6 + END
+subprocess.run(['ffmpeg', '-loglevel', 'error', '-y', '-loop', '1', '-framerate', '30', '-t', str(END), '-i', 'images/Sand-Still-gen.png',
+                '-filter_complex', f"[0:v]scale=1080:1350:force_original_aspect_ratio=increase,crop=1080:1350,scale=1166:1458,"
+                f"zoompan=z='1.08-0.08*on/{int(END*30)}':x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)':d=1:s=1080x1350:fps=30,{WM},format=yuv420p[v]",
+                '-map', '[v]', '-c:v', 'libx264', '-crf', '17', '-t', str(END), 'final/endcard.mp4'], check=True)
+subprocess.run(['ffmpeg', '-loglevel', 'error', '-y', '-i', 'final/Sand-Draft-v1.mp4', '-i', 'final/endcard.mp4', '-ss', '11.71', '-i', 'audio/A1-Music.mp3',
+                '-filter_complex', f"[0:v][1:v]concat=n=2:v=1:a=0[v];[2:a]atrim=0:{D2},asetpts=PTS-STARTPTS,afade=t=in:d=0.3,afade=t=out:st={D2-1}:d=1,volume=0.9,alimiter=limit=0.9[a]",
+                '-map', '[v]', '-map', '[a]', '-c:v', 'libx264', '-crf', '17', '-c:a', 'aac', '-b:a', '192k', '-t', str(D2), 'final/Sand-Final-v2.mp4'], check=True)
+print('final/Sand-Final-v2.mp4')
