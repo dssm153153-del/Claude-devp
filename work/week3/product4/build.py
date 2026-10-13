@@ -11,7 +11,7 @@ txt = lambda s, y: (f"drawtext=fontfile={KO}:text='{s}':fontsize=64:fontcolor=wh
 WM = "drawtext=fontfile=/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf:text='@pathtorich7':fontsize=36:fontcolor=white@0.55:shadowcolor=black@0.4:shadowx=2:shadowy=2:x=w-tw-40:y=h-110"
 parts = [f"[{src}:v]trim={a}:{b},setpts=(PTS-STARTPTS)/{s},{V}[s{i}]" for i, (src, a, b, s) in enumerate(SEG)]
 fc = ";".join(parts) + ";" + "".join(f"[s{i}]" for i in range(len(SEG))) + \
-     f"xfade=transition=fade:duration=0.25:offset=4.79,{txt(CAP1, 230)},{txt(CAP2, 315)},{WM},format=yuv420p[v]"
+     f"xfade=transition=fade:duration=0.25:offset=4.79,{WM},format=yuv420p[v]"
 subprocess.run(['ffmpeg', '-loglevel', 'error', '-y', '-i', 'clips/K1.mp4', '-i', 'clips/K2.mp4', '-filter_complex', fc,
-                '-map', '[v]', '-c:v', 'libx264', '-crf', '17', 'final/Dog-Draft-v4.mp4'], check=True)
-print('final/Dog-Draft-v4.mp4')
+                '-map', '[v]', '-c:v', 'libx264', '-crf', '17', 'final/Dog-Draft-v5.mp4'], check=True)
+print('final/Dog-Draft-v5.mp4')
