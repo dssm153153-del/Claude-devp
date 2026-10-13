@@ -1,5 +1,5 @@
 # 쓰레드 글 (홍보 전용 글)
-업로드: final/Sand-Final-v1.mp4 (4:5, 11.6초, 잔잔한 음악)
+업로드: final/Sand-Final-v1.mp4 (4:5, 11.6초, 잔잔한 음악) + images/Sand-Still.png(GPT 생활 사진, 워터마크)
 
 멍때리다 30분 날아가는 모래 액자 ㄷㄷ
 

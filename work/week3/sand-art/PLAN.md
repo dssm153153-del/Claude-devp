@@ -14,3 +14,4 @@
 - 남은 것: 쿠팡 옵션 색 확인, 음악(잔잔한 30초), 글.
 - 최종: final/Sand-Final-v1.mp4 (A1-Music 11.71초부터, 컷이 강박에 맞음), 글 POST.md. 색상 옵션 확인 대기.
 - 스틸: 영상 프레임은 액자 위가 잘리고 디퓨저 라벨(DREAMWI)이 보여 부적합 → GPT로 생활 사진 Sand-Still.png 생성(첨부: Sand-Still-raw.png, Product.png).
+- Sand-Still.png: 통과. 액자 전체+받침대 보임, 주황 모래 층·쏟아짐 영상과 일치, 노트북 로고·글자 없음. 워터마크 오른쪽 위(원본 Sand-Still-gen.png).
