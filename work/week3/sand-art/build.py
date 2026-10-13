@@ -15,3 +15,10 @@ fc = ";".join(parts) + ";" + "".join(labels) + f"concat=n={len(SEG)}:v=1:a=0,{WM
 subprocess.run(['ffmpeg', '-loglevel', 'error', '-y', '-i', 'ref/Src.mp4', '-filter_complex', fc, '-map', '[v]',
                 '-c:v', 'libx264', '-crf', '17', 'final/Sand-Draft-v1.mp4'], check=True)
 print('final/Sand-Draft-v1.mp4')
+
+# v1: 음악(A1-Music 11.71초부터, 컷 0/3.1/7.6이 강박에 맞는 오프셋), 0.3초 페이드인·1초 페이드아웃
+D = 11.6
+subprocess.run(['ffmpeg', '-loglevel', 'error', '-y', '-i', 'final/Sand-Draft-v1.mp4', '-ss', '11.71', '-i', 'audio/A1-Music.mp3',
+                '-filter_complex', f"[1:a]atrim=0:{D},asetpts=PTS-STARTPTS,afade=t=in:d=0.3,afade=t=out:st={D-1}:d=1,volume=0.9,alimiter=limit=0.9[a]",
+                '-map', '0:v', '-map', '[a]', '-c:v', 'copy', '-c:a', 'aac', '-b:a', '192k', '-t', str(D), 'final/Sand-Final-v1.mp4'], check=True)
+print('final/Sand-Final-v1.mp4')
