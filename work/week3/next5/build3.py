@@ -34,3 +34,11 @@ fc.append("[A][B][C]concat=n=3:v=1:a=0," + WM + ",format=yuv420p[v]")
 subprocess.run(['ffmpeg', '-loglevel', 'error', '-y', '-i', 'ref/Src.mp4', '-i', 'ref/My.mp4', '-filter_complex', ";".join(fc),
                 '-map', '[v]', '-c:v', 'libx264', '-crf', '17', 'final/Jar-Draft-v4.mp4'], check=True)
 print('final/Jar-Draft-v4.mp4')
+
+# 최종: 음악 A1-Music 11.38초부터(0/6.52/9.02 컷이 강박) + 귤 떠오르는 순간 12.2초 '뿅'(S1-Pop 0–0.6초)
+D = 15.0
+subprocess.run(['ffmpeg', '-loglevel', 'error', '-y', '-i', 'final/Jar-Draft-v4.mp4', '-ss', '11.38', '-i', 'audio/A1-Music.mp3', '-i', 'audio/S1-Pop.mp3',
+                '-filter_complex', f"[1:a]atrim=0:{D},asetpts=PTS-STARTPTS,afade=t=in:d=0.2,afade=t=out:st={D-0.8}:d=0.8,volume=0.85[m];"
+                "[2:a]atrim=0:0.6,asetpts=PTS-STARTPTS,volume=0.6,adelay=12200|12200[p];[m][p]amix=inputs=2:normalize=0,alimiter=limit=0.9[a]",
+                '-map', '0:v', '-map', '[a]', '-c:v', 'copy', '-c:a', 'aac', '-b:a', '192k', '-t', str(D), 'final/Jar-Final-v1.mp4'], check=True)
+print('final/Jar-Final-v1.mp4')
