@@ -15,3 +15,10 @@ fc = ";".join(parts) + ";" + "".join(f"[s{i}]" for i in range(len(SEG))) + \
 subprocess.run(['ffmpeg', '-loglevel', 'error', '-y', '-i', 'clips/K1.mp4', '-i', 'clips/K2.mp4', '-filter_complex', fc,
                 '-map', '[v]', '-c:v', 'libx264', '-crf', '17', 'final/Dog-Draft-v5.mp4'], check=True)
 print('final/Dog-Draft-v5.mp4')
+
+# 최종: 음악 A1-Music 17.53초부터(0초·4.79초 디졸브가 강박), 0.2초 페이드인·0.8초 페이드아웃
+D = 8.2
+subprocess.run(['ffmpeg', '-loglevel', 'error', '-y', '-i', 'final/Dog-Draft-v5.mp4', '-ss', '17.53', '-i', 'audio/A1-Music.mp3',
+                '-filter_complex', f"[1:a]atrim=0:{D},asetpts=PTS-STARTPTS,afade=t=in:d=0.2,afade=t=out:st={D-0.8}:d=0.8,volume=0.9,alimiter=limit=0.9[a]",
+                '-map', '0:v', '-map', '[a]', '-c:v', 'copy', '-c:a', 'aac', '-b:a', '192k', '-t', str(D), 'final/Dog-Final-v1.mp4'], check=True)
+print('final/Dog-Final-v1.mp4')
