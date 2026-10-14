@@ -4,7 +4,7 @@
 """
 import subprocess
 F = '/usr/share/fonts/truetype/nanum/NanumSquareEB.ttf'
-SEG = [(0, 3.6, 1.0, '높은 가지 감 이걸로 쏙'), (13.83, 15.4, 1.0, '바닥에 스펀지 깔려 있어서 안 멍듦')]  # 빨간 바구니 구간만 (15.5초부터는 파란 바구니)
+SEG = [(0, 1.7, 0.8, '높은 가지 사과도 이걸로 쏙'), (13.83, 15.4, 1.0, '바닥에 스펀지 깔려 있어서 안 멍듦')]  # v2: 감 장면 삭제(사용자), 사과 장면 0.8x
 parts = []
 for i, (a, b, s, cap) in enumerate(SEG):
     parts.append(f"[0:v]trim={a}:{b},setpts=(PTS-STARTPTS)/{s},split[x{i}][y{i}];"
@@ -13,5 +13,5 @@ for i, (a, b, s, cap) in enumerate(SEG):
                  f"scale=1080:1920:flags=lanczos,fps=30,setsar=1[s{i}]")
 fc = ";".join(parts) + ";" + "".join(f"[s{i}]" for i in range(len(SEG))) + f"concat=n={len(SEG)}:v=1:a=0,format=yuv420p[v]"
 subprocess.run(['ffmpeg', '-loglevel', 'error', '-y', '-i', 'ref/Src.mp4', '-filter_complex', fc, '-map', '[v]',
-                '-c:v', 'libx264', '-crf', '18', 'final/Src-Cut-Draft.mp4'], check=True)
-print('final/Src-Cut-Draft.mp4')
+                '-c:v', 'libx264', '-crf', '18', 'final/Src-Cut-Draft-v2.mp4'], check=True)
+print('final/Src-Cut-Draft-v2.mp4')
