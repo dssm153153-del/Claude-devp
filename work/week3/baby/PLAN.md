@@ -49,4 +49,5 @@
 ## 제작: 동영상 수정 (MiniMax H3)
 - 소스: ref/Src-Cut.mp4 = 원본 2.4–15.16초(12.6초, 무음). 거절 ①②③ 모두 포함.
 - 바꿀 것(기본안): 사모예드 → 골든 리트리버(큰 체구 유지), 아기 → 다른 아기(검은 머리 한국 아기), 갈색 우주복 → 하늘색 골지 우주복, 초록 쿠션 → 베이지 부클 원형 쿠션.
-- 1단계: ref/Src-Cut-First.png → GPT로 정답 이미지 ref/Ref-First.png
+- 1단계: ref/Src-Cut-First.png → GPT로 정답 이미지 ref/Ref-First.png (941x1672, 골든 리트리버·한국 아기·하늘색 우주복·베이지 부클, 통과)
+- 2단계: 동영상 수정 MiniMax H3, 768, @img1=Ref-First.png → clips/Baby-K1.mp4 (소스 기준 거절 2.4 / 5.7–7.1 / 10.7초)
