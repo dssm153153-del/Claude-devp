@@ -1,7 +1,7 @@
 # 인수인계 (@pathtorich7, 2026-10-14 기준)
 
 새 창에서 시작할 때: "work/HANDOFF-pathtorich7.md 읽고 이어서 하자" + 필요하면 `coupang-product-promo` 스킬 사용.
-브랜치: claude/great-wright-ua54j6 (모든 작업 커밋·푸시됨).
+브랜치: claude/loving-goodall-sgrcup (great-wright 병합됨) (모든 작업 커밋·푸시됨).
 
 ## 원칙 (스킬 요약)
 - 스킬: `.claude/skills/coupang-product-promo/SKILL.md`(원칙만), `.claude/skills/video-recreate-workflow/SKILL.md`.
@@ -26,7 +26,8 @@
 | product4 | 강아지 LED 날개(쿠팡) | 게시 |
 | next5 | 물속 귤(직촬+원본) | 완료 |
 | dog-shell | 퍼그 야바위(일반) | 완료 |
-| fruit-picker | 과일 따기 장대(쿠팡) Fruit-Final-v1 + Fruit-Still + POST.md | 완료, 게시 대기 |
+| fruit-picker | 과일 따기 장대(쿠팡) Fruit-Final-v1 + Fruit-Still + POST.md | 완료, 게시 대기 (글 최종안은 대화에서 확정: 불편함 해소형 3덩어리, POST.md 미반영) |
+| baby | 골든 리트리버가 아기 안 돌려줌(제이크 원본 동영상 수정 MiniMax) Baby-Final-v4 + Baby-Still + POST.md | 완료, 게시 대기 |
 
 ## 다음
 - 각 글 반응(조회·댓글·링크 클릭) 받아서 account-analysis에 기록.
