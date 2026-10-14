@@ -24,7 +24,7 @@ print('final/Pug-Draft-v3.mp4')
 # 최종: 음악(컷 0/7.5/17.5 강박 오프셋) + 앞발 컷 순간 '삑'(S1-Stop 0–0.7초)
 D = 26.866
 STOP_AT = t3 + 1.4
-OFF = 7.02  # promo.py beat (컷 0/7.5/17.5)
+OFF = 0.6  # promo.py beat (컷 0/7.5/17.5, 26.9초까지 음악이 남도록)
 subprocess.run(['ffmpeg', '-loglevel', 'error', '-y', '-i', 'final/Pug-Draft-v3.mp4', '-i', 'audio/A1-Music.mp3', '-i', 'audio/S1-Stop.mp3',
                 '-filter_complex', f"[1:a]atrim={OFF}:{OFF + D},asetpts=PTS-STARTPTS,afade=t=in:d=0.2,afade=t=out:st={D-1}:d=1,volume=0.8[m];"
                 f"[2:a]atrim=0:0.7,asetpts=PTS-STARTPTS,afade=t=out:st=0.5:d=0.2,volume=0.7,adelay={int(STOP_AT*1000)}|{int(STOP_AT*1000)}[s];"
