@@ -4,7 +4,7 @@
 """
 import subprocess
 F = '/usr/share/fonts/truetype/nanum/NanumSquareEB.ttf'
-SEG = [(15.67, 18.4, 1.0, '손 안 닿는 꼭대기 사과까지'), (5.8, 8.45, 1.2, '스펀지 깔려 있어서 안 멍듦'), (13.83, 15.4, 1.0, '장대 이어서 4m까지')]  # v5: 사과만 + 사용법·장점
+SEG = [(15.67, 18.4, 1.2, '손 안 닿는 꼭대기 사과까지'), (5.8, 8.45, 1.4, '스펀지 깔려 있어서 안 멍듦'), (13.83, 15.4, 1.3, '장대 이어서 4m까지')]  # v5b: 빠르게
 parts = []
 for i, (a, b, s, cap) in enumerate(SEG):
     parts.append(f"[0:v]trim={a}:{b},setpts=(PTS-STARTPTS)/{s},split[x{i}][y{i}];"

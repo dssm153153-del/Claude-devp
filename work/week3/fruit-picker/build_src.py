@@ -4,7 +4,7 @@
 """
 import subprocess
 F = '/usr/share/fonts/truetype/nanum/NanumSquareEB.ttf'
-SEG = [(0, 1.7, 0.8, '높이 달린 과일 이걸로 쏙'), (15.67, 18.4, 1.0, '손 안 닿는 꼭대기 사과까지'), (13.83, 15.4, 1.0, '장대 이어서 4m까지')]  # v4: 첫 컷(높은 가지, 덜 익은 감) + 후반 사과나무 높이 따기(15.67–18.65) + 장대. 감 클로즈업(낮은 나무) 제외
+SEG = [(0, 1.7, 1.0, '높이 달린 과일 이걸로 쏙'), (15.67, 18.4, 1.2, '손 안 닿는 꼭대기 사과까지'), (13.83, 15.4, 1.3, '장대 이어서 4m까지')]  # v4b: 원속도 이상(느림 지적)
 parts = []
 for i, (a, b, s, cap) in enumerate(SEG):
     parts.append(f"[0:v]trim={a}:{b},setpts=(PTS-STARTPTS)/{s},split[x{i}][y{i}];"
