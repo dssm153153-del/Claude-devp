@@ -22,7 +22,8 @@
 ## 제작: 한국인 커플 + 밝은 안방 화장대 (3D 애니 스타일 유지), 동영상 수정
 - 컷 2개: ref/Src-A.mp4(0–11.5) / ref/Src-B.mp4(11.5–16.4, 4.5초). 예상 MiniMax 768: A 약 2200 + B 약 870.
 - 1단계 Ref-A: ref/Src-A-Frame.png(2.6초, 두 사람 다 보임) → GPT → ref/Ref-A.png  → 통과(935x1681, 구도·표정·손 위치 일치)
-- 2단계 Ref-B: ref/Src-B-First.png + Ref-A.png → GPT → ref/Ref-B.png
+- 2단계 Ref-B: ref/Src-B-First.png + Ref-A.png → GPT → ref/Ref-B.png  → v1 불합격(클로즈업), v2 통과(940x1672, 넓은 샷 일치)
+- 3단계: MiniMax H3 768 — A: Src-A + @img1 Ref-A → clips/Next7-K1.mp4 / B: Src-B + @img1 Ref-B, @img2 Ref-A → clips/Next7-K2.mp4
 - 남자 수염 유지(4.5–8.5 여자가 마스카라로 콧수염 흉내 → 11.5 이후 남자가 자기 얼굴 가리킴 개그).
 
 ## 내용 (사용자 확인)
