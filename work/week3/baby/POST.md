@@ -1,4 +1,4 @@
-# 쓰레드 글 (일반 글, 링크 없음)
+# 쓰레드 글
 업로드: final/Baby-Final-v4.mp4 (12초, 원본 소리 + 한국어 자막) + images/Baby-Still.png
 AI 라벨: 켜기
 
@@ -12,4 +12,3 @@ AI 라벨: 켜기
 
 [첫 댓글, 게시 직후]
 원작: instagram @jakethetroublemaker (AI로 다시 만든 버전)
-- 쿠팡 링크 달지 않음. 원본 소리(엄마 목소리) 사용이라 신고·소리 매칭 위험은 남음.
