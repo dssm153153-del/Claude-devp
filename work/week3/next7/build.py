@@ -42,13 +42,14 @@ fc.append(v)
 if MUSIC:
     cmd += ['-i', MUSIC]
     # 음악 강약(원본 구조: 약 → 정적 → 강 → 컷 전 줄임 → 뽀잉 때 낮춤 → 마무리 강)
-    VOL = "if(lt(t,3.3),0.6,if(lt(t,6.9),1.0,if(lt(t,7.4),0.4,if(lt(t,8.35),0.75,if(lt(t,9.6),0.3,1.0)))))"
+    VOL = "if(lt(t,3.3),0.6,if(lt(t,6.9),1.0,if(lt(t,7.4),0.4,if(lt(t,8.35),0.75,1.0))))"
     fc.append(f"[{len(idx)}:a]atrim={MOFF}:{MOFF+LEN},asetpts=PTS-STARTPTS,volume='{VOL}':eval=frame,afade=t=out:st={LEN-0.4}:d=0.4[m]")
     # 원본(audio/Orig.mp3)에서 효과음만 짧게 잘라 장면에 맞춤: (원본 시작, 끝, 원본 정점, 우리 정점, 필터, 볼륨)
     SFX = [(3.15, 3.85, 3.50, 3.45, 'highpass=f=1200', 1.0),   # 휙: 아내가 눈치챔
            (5.10, 5.80, 5.46, 5.05, 'highpass=f=1200', 1.0),   # 휙: 면도 흉내 시작
            (11.65, 12.35, 12.00, 7.45, 'highpass=f=1200', 1.0),  # 휙: 넓은 샷 전환
-           (12.70, 13.50, 12.70, 8.46, 'highpass=f=150', 1.0)]   # 뽀잉(최강): 엄지로 "나가"
+           ] + ([(5.10, 5.80, 5.46, 8.40, 'highpass=f=1200', 1.0)] if os.environ.get('NAGA') == 'whoosh' else [])
+    # 원본 12.7–13.5 '뽀잉'은 효과음이 아니라 원본 음악의 길게 끄는 음(약 390Hz)이라 우리 음악과 겹치면 어색 → 제외
     oi = len(idx) + 1
     cmd += ['-i', 'audio/Orig.mp3']
     fc.append(f'[{oi}:a]asplit={len(SFX)}' + ''.join(f'[o{i}]' for i in range(len(SFX))))
