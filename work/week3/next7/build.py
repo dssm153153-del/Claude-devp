@@ -2,14 +2,14 @@
 import subprocess, os, sys
 F = '/usr/share/fonts/truetype/nanum/NanumSquareEB.ttf'
 MUSIC = sys.argv[1] if len(sys.argv) > 1 else None   # 음악 파일(없으면 무음)
-OUT = sys.argv[2] if len(sys.argv) > 2 else 'final/Next7-Draft-v4.mp4'
+OUT = sys.argv[2] if len(sys.argv) > 2 else 'final/Next7-Draft-v5.mp4'
 HOLD = 0.3
 K3 = os.path.exists('clips/Next7-K3.mp4')
 # (파일, 시작, 끝, 배속) — 원본 장면 길이에 맞춤(PLAN.md 속도 분석)
 SEG = [('clips/Next7-K1.mp4', 0.0, 5.75, 1.64),   # 마스카라 + 남편 따라 하기 (원본 3.5초)
        ('clips/Next7-K1.mp4', 5.75, 8.3, 1.7),    # 눈치채고 생각하는 표정(짧게)
-       ('clips/Next7-K1.mp4', 8.3, 9.7, 1.0)]     # 면도 흉내 시작(인중)
-if K3: SEG.append(('clips/Next7-K3.mp4', 0.0, None, 2.3))  # 볼 면도(5.17초 출력 → 약 2.2초)
+       ('clips/Next7-K1.mp4', 8.3, 9.7, 1.4)]     # 면도 흉내 시작(인중) — 빠르게(사용자)
+if K3: SEG.append(('clips/Next7-K3.mp4', 0.0, None, 3.2))  # 볼 면도 — 빠르게(사용자), 약 1.6초
 SEG.append(('clips/Next7-K2.mp4', 0.0, 5.167, 1.14))        # 넓은 샷 "나가"(원본 4.5초)
 import json
 _c = json.load(open('build_k3_color.json'))   # K3 색을 K1에 맞추는 채널별 gain/bias
