@@ -2,7 +2,7 @@
 import subprocess, os, sys
 F = '/usr/share/fonts/truetype/nanum/NanumSquareEB.ttf'
 MUSIC = sys.argv[1] if len(sys.argv) > 1 else None   # 음악 파일(없으면 무음)
-OUT = sys.argv[2] if len(sys.argv) > 2 else 'final/Next7-Final-v2.mp4'
+OUT = sys.argv[2] if len(sys.argv) > 2 else 'final/Next7-Final.mp4'
 HOLD = 0.3
 MOFF = 17.5   # 음악 시작 지점: 음악의 쉼(21.0–22.3)이 '생각' 구간, 22.5 복귀가 면도 시작(5.0초), 끝은 음악 자연 종료
 K3 = os.path.exists('clips/Next7-K3.mp4')
@@ -48,7 +48,7 @@ if MUSIC:
     SFX = [(3.15, 3.85, 3.50, 3.45, 'highpass=f=1200', 1.0),   # 휙: 아내가 눈치챔
            (5.10, 5.80, 5.46, 5.05, 'highpass=f=1200', 1.0),   # 휙: 면도 흉내 시작
            (11.65, 12.35, 12.00, 7.45, 'highpass=f=1200', 1.0),  # 휙: 넓은 샷 전환
-           ] + ([(5.10, 5.80, 5.46, 8.40, 'highpass=f=1200', 1.0)] if os.environ.get('NAGA') == 'whoosh' else [])
+           ] + ([(5.10, 5.80, 5.46, 8.40, 'highpass=f=1200', 1.0)] if os.environ.get('NAGA', 'whoosh') == 'whoosh' else [])
     # 원본 12.7–13.5 '뽀잉'은 효과음이 아니라 원본 음악의 길게 끄는 음(약 390Hz)이라 우리 음악과 겹치면 어색 → 제외
     oi = len(idx) + 1
     cmd += ['-i', 'audio/Orig.mp3']
