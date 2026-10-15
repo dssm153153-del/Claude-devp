@@ -2,7 +2,7 @@
 import subprocess, os, sys
 F = '/usr/share/fonts/truetype/nanum/NanumSquareEB.ttf'
 MUSIC = sys.argv[1] if len(sys.argv) > 1 else None   # 음악 파일(없으면 무음)
-OUT = sys.argv[2] if len(sys.argv) > 2 else 'final/Next7-Final-v1.mp4'
+OUT = sys.argv[2] if len(sys.argv) > 2 else 'final/Next7-Final-v2.mp4'
 HOLD = 0.3
 MOFF = 17.5   # 음악 시작 지점: 음악의 쉼(21.0–22.3)이 '생각' 구간, 22.5 복귀가 면도 시작(5.0초), 끝은 음악 자연 종료
 K3 = os.path.exists('clips/Next7-K3.mp4')
@@ -41,7 +41,21 @@ v += f",drawtext=fontfile={F}:text='@pathtorich7':fontsize=38:fontcolor=white@0.
 fc.append(v)
 if MUSIC:
     cmd += ['-i', MUSIC]
-    fc.append(f'[{len(idx)}:a]atrim={MOFF}:{MOFF+LEN},asetpts=PTS-STARTPTS,afade=t=out:st={LEN-0.4}:d=0.4[a]')
+    # 음악 강약(원본 구조: 약 → 정적 → 강 → 컷 전 줄임 → 뽀잉 때 낮춤 → 마무리 강)
+    VOL = "if(lt(t,3.3),0.6,if(lt(t,6.9),1.0,if(lt(t,7.4),0.4,if(lt(t,8.35),0.75,if(lt(t,9.6),0.3,1.0)))))"
+    fc.append(f"[{len(idx)}:a]atrim={MOFF}:{MOFF+LEN},asetpts=PTS-STARTPTS,volume='{VOL}':eval=frame,afade=t=out:st={LEN-0.4}:d=0.4[m]")
+    # 원본(audio/Orig.mp3)에서 효과음만 짧게 잘라 장면에 맞춤: (원본 시작, 끝, 원본 정점, 우리 정점, 필터, 볼륨)
+    SFX = [(3.15, 3.85, 3.50, 3.45, 'highpass=f=1200', 1.0),   # 휙: 아내가 눈치챔
+           (5.10, 5.80, 5.46, 5.05, 'highpass=f=1200', 1.0),   # 휙: 면도 흉내 시작
+           (11.65, 12.35, 12.00, 7.45, 'highpass=f=1200', 1.0),  # 휙: 넓은 샷 전환
+           (12.70, 13.50, 12.70, 8.46, 'highpass=f=150', 1.0)]   # 뽀잉(최강): 엄지로 "나가"
+    oi = len(idx) + 1
+    cmd += ['-i', 'audio/Orig.mp3']
+    fc.append(f'[{oi}:a]asplit={len(SFX)}' + ''.join(f'[o{i}]' for i in range(len(SFX))))
+    for i, (a, b, pk, at, flt, vol) in enumerate(SFX):
+        d = int(max(0, at - (pk - a)) * 1000)
+        fc.append(f'[o{i}]atrim={a}:{b},asetpts=PTS-STARTPTS,{flt},afade=t=in:d=0.05,afade=t=out:st={b-a-0.15}:d=0.15,volume={vol},adelay={d}:all=1[x{i}]')
+    fc.append('[m]' + ''.join(f'[x{i}]' for i in range(len(SFX))) + f'amix=inputs={len(SFX)+1}:normalize=0,atrim=0:{LEN},alimiter=limit=0.89[a]')
 else:
     fc.append(f'anoisesrc=color=pink:amplitude=0.0:duration={LEN}[a]')
 cmd += ['-filter_complex', ';'.join(fc), '-map', '[v]', '-map', '[a]', '-c:v', 'libx264', '-crf', '23', '-preset', 'slow',
