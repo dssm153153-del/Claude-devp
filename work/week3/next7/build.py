@@ -2,14 +2,18 @@
 import subprocess, os, sys
 F = '/usr/share/fonts/truetype/nanum/NanumSquareEB.ttf'
 MUSIC = sys.argv[1] if len(sys.argv) > 1 else None   # 음악 파일(없으면 무음)
-OUT = sys.argv[2] if len(sys.argv) > 2 else 'final/Next7-Draft-v3.mp4'
-HOLD = 0.6
+OUT = sys.argv[2] if len(sys.argv) > 2 else 'final/Next7-Draft-v4.mp4'
+HOLD = 0.3
 K3 = os.path.exists('clips/Next7-K3.mp4')
-SEG = [('clips/Next7-K1.mp4', 0.0, 6.5, 1.25),   # 마스카라 + 남편 따라 하기
-       ('clips/Next7-K1.mp4', 6.5, 8.3, 1.7),    # 눈치채고 생각하는 표정(원본보다 길어서 압축)
-       ('clips/Next7-K1.mp4', 8.3, 9.7, 1.0)]    # 면도 흉내 시작
-if K3: SEG.append(('clips/Next7-K3.mp4', 0.0, None, 2.3))  # 볼 면도(5.17초 출력 → 원본 속도 약 2.2초)
-SEG.append(('clips/Next7-K2.mp4', 0.0, 5.167, 1.0))         # 나가
+# (파일, 시작, 끝, 배속) — 원본 장면 길이에 맞춤(PLAN.md 속도 분석)
+SEG = [('clips/Next7-K1.mp4', 0.0, 5.75, 1.64),   # 마스카라 + 남편 따라 하기 (원본 3.5초)
+       ('clips/Next7-K1.mp4', 5.75, 8.3, 1.7),    # 눈치채고 생각하는 표정(짧게)
+       ('clips/Next7-K1.mp4', 8.3, 9.7, 1.0)]     # 면도 흉내 시작(인중)
+if K3: SEG.append(('clips/Next7-K3.mp4', 0.0, None, 2.3))  # 볼 면도(5.17초 출력 → 약 2.2초)
+SEG.append(('clips/Next7-K2.mp4', 0.0, 5.167, 1.14))        # 넓은 샷 "나가"(원본 4.5초)
+import json
+_c = json.load(open('build_k3_color.json'))   # K3 색을 K1에 맞추는 채널별 gain/bias
+K3_COLOR = 'lutrgb=' + ':'.join(f"{ch}='clip(val*{g:.4f}+({bb:.2f}),0,255)'" for ch, g, bb in zip('rgb', _c['gain'], _c['bias']))
 def _d(f): return float(subprocess.check_output(['ffprobe','-v','error','-show_entries','format=duration','-of','csv=p=0',f]))
 SEG = [(f, a, b if b is not None else _d(f), s) for f, a, b, s in SEG]
 LEN = sum((b - a) / s for _, a, b, s in SEG) + HOLD
@@ -24,7 +28,7 @@ os.makedirs('build', exist_ok=True)
 cmd = ['ffmpeg', '-v', 'error', '-y']
 for f in sorted({s[0] for s in SEG}): cmd += ['-i', f]
 idx = {f: i for i, f in enumerate(sorted({s[0] for s in SEG}))}
-fc = [f'[{idx[f]}:v]trim={a}:{b},setpts=(PTS-STARTPTS)/{s},scale=1080:1890,pad=1080:1920:0:15:color=white,fps=30[s{i}]'
+fc = [f'[{idx[f]}:v]trim={a}:{b},setpts=(PTS-STARTPTS)/{s},' + (K3_COLOR + ',' if 'K3' in f else '') + f'scale=1080:1890,pad=1080:1920:0:15:color=white,fps=30[s{i}]'
       for i, (f, a, b, s) in enumerate(SEG)]
 v = ''.join(f'[s{i}]' for i in range(len(SEG))) + f'concat=n={len(SEG)}:v=1:a=0,tpad=stop_mode=clone:stop_duration={HOLD}'
 for i, (a, b, who, t) in enumerate([]):  # 자막 없음(사용자 결정)
