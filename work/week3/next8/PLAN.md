@@ -44,3 +44,5 @@
 - 수정: Ref-Mom을 편집해 팔 2개·장난감은 소파에 놓인 상태로 → Ref-Mom-Push. 재생성 소스 ref/Src-Mom-Push.mp4 = 원본 23.4–28.4(Src-Mom 4.0–9.0, 5초). 합본: Next8-Mom 0–4.0 + 새 클립.
 - 교훈: 이미지 검수 때 "팔·손이 몸 어디에서 나오는지" 하나씩 따라가며 개수를 센다.
 - Ref-Mom-Push.png 통과: 팔 2개(어깨부터 확인), 손가락 5+5, 손목 자연스러움, 장난감은 소파 위, 장난스러운 미소, 클로즈업.
+- ✘ 소스 자체 문제(사용자 지적): Src-Mom-Push.mp4(원본 23.4–28.4)는 손이 모션블러·저화질로 기괴 → 동영상 수정은 소스 손을 따라가므로 쓰지 않음.
+- 대안: Kling O1 Start/End(소스 영상 없음). Start = images/Mom-K-Last.png(Next8-Mom 3.9초, 팔 2개 확인), End = ref/Ref-Mom-Push.png. 합본: Next8-Mom 0–3.9 + Kling 클립.
