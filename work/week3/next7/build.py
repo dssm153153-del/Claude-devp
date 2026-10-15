@@ -2,13 +2,13 @@
 import subprocess, os, sys
 F = '/usr/share/fonts/truetype/nanum/NanumSquareEB.ttf'
 MUSIC = sys.argv[1] if len(sys.argv) > 1 else None   # 음악 파일(없으면 무음)
-OUT = sys.argv[2] if len(sys.argv) > 2 else 'final/Next7-Draft-v2.mp4'
+OUT = sys.argv[2] if len(sys.argv) > 2 else 'final/Next7-Draft-v3.mp4'
 HOLD = 0.6
 K3 = os.path.exists('clips/Next7-K3.mp4')
 SEG = [('clips/Next7-K1.mp4', 0.0, 6.5, 1.25),   # 마스카라 + 남편 따라 하기
        ('clips/Next7-K1.mp4', 6.5, 8.3, 1.7),    # 눈치채고 생각하는 표정(원본보다 길어서 압축)
        ('clips/Next7-K1.mp4', 8.3, 9.7, 1.0)]    # 면도 흉내 시작
-if K3: SEG.append(('clips/Next7-K3.mp4', 0.0, None, 1.0))  # 볼 면도
+if K3: SEG.append(('clips/Next7-K3.mp4', 0.0, None, 2.3))  # 볼 면도(5.17초 출력 → 원본 속도 약 2.2초)
 SEG.append(('clips/Next7-K2.mp4', 0.0, 5.167, 1.0))         # 나가
 def _d(f): return float(subprocess.check_output(['ffprobe','-v','error','-show_entries','format=duration','-of','csv=p=0',f]))
 SEG = [(f, a, b if b is not None else _d(f), s) for f, a, b, s in SEG]
