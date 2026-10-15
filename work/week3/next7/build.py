@@ -2,11 +2,18 @@
 import subprocess, os, sys
 F = '/usr/share/fonts/truetype/nanum/NanumSquareEB.ttf'
 MUSIC = sys.argv[1] if len(sys.argv) > 1 else None   # 음악 파일(없으면 무음)
-OUT = sys.argv[2] if len(sys.argv) > 2 else 'final/Next7-Draft-v1.mp4'
+OUT = sys.argv[2] if len(sys.argv) > 2 else 'final/Next7-Draft-v2.mp4'
 HOLD = 0.6
-SEG = [('clips/Next7-K1.mp4', 0.0, 6.5, 1.25), ('clips/Next7-K1.mp4', 6.5, 9.7, 1.0), ('clips/Next7-K2.mp4', 0.0, 5.167, 1.0)]
+K3 = os.path.exists('clips/Next7-K3.mp4')
+SEG = [('clips/Next7-K1.mp4', 0.0, 6.5, 1.25),   # 마스카라 + 남편 따라 하기
+       ('clips/Next7-K1.mp4', 6.5, 8.3, 1.7),    # 눈치채고 생각하는 표정(원본보다 길어서 압축)
+       ('clips/Next7-K1.mp4', 8.3, 9.7, 1.0)]    # 면도 흉내 시작
+if K3: SEG.append(('clips/Next7-K3.mp4', 0.0, None, 1.0))  # 볼 면도
+SEG.append(('clips/Next7-K2.mp4', 0.0, 5.167, 1.0))         # 나가
+def _d(f): return float(subprocess.check_output(['ffprobe','-v','error','-show_entries','format=duration','-of','csv=p=0',f]))
+SEG = [(f, a, b if b is not None else _d(f), s) for f, a, b, s in SEG]
 LEN = sum((b - a) / s for _, a, b, s in SEG) + HOLD
-SUBS = [  # (시작, 끝, 화자, 문구)  K2 시작 = 8.4초
+SUBS_OFF = [  # (시작, 끝, 화자, 문구)  K2 시작 = 8.4초
     (1.0, 5.2, 'him', '남편: 아~ 이렇게 하는 거지?'),
     (5.3, 6.8, 'her', '아내: …지금 놀려?'),
     (6.8, 8.4, 'her', '아내: 너 면도할 때 이러잖아'),
@@ -20,7 +27,7 @@ idx = {f: i for i, f in enumerate(sorted({s[0] for s in SEG}))}
 fc = [f'[{idx[f]}:v]trim={a}:{b},setpts=(PTS-STARTPTS)/{s},scale=1080:1890,pad=1080:1920:0:15:color=white,fps=30[s{i}]'
       for i, (f, a, b, s) in enumerate(SEG)]
 v = ''.join(f'[s{i}]' for i in range(len(SEG))) + f'concat=n={len(SEG)}:v=1:a=0,tpad=stop_mode=clone:stop_duration={HOLD}'
-for i, (a, b, who, t) in enumerate(SUBS):
+for i, (a, b, who, t) in enumerate([]):  # 자막 없음(사용자 결정)
     p = f'build/sub{i}.txt'; open(p, 'w').write(t)
     y, col = ('150', '#FFE14D') if who == 'him' else ('h*0.80', 'white')
     v += (f",drawtext=fontfile={F}:textfile={p}:fontsize=70:fontcolor={col}:borderw=7:bordercolor=black:"
