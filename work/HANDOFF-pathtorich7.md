@@ -27,6 +27,7 @@
 | next5 | 물속 귤(직촬+원본) | 완료 |
 | dog-shell | 퍼그 야바위(일반) | 완료 |
 | fruit-picker | 과일 따기 장대(쿠팡) Fruit-Final-v1 + Fruit-Still + POST.md | 완료, 게시 대기 (글 최종안은 대화에서 확정: 불편함 해소형 3덩어리, POST.md 미반영) |
+| next8 | 아빠 vs 엄마 무릎베개(실사 AI, MiniMax 중국어 프롬프트 + 밀기 반복 편집) Next8-Final + Next8-Still + POST.md | 완료, 게시 대기 |
 | next7 | 마스카라 커플(3D 애니, 한국인·밝은 안방으로 동영상 수정 3컷) Next7-Final + Next7-Still + POST.md, 자막 없음 | 완료, 게시 대기 |
 | baby | 골든 리트리버가 아기 안 돌려줌(제이크 원본 동영상 수정 MiniMax) Baby-Final-v4 + Baby-Still + POST.md | 완료, 게시 대기 |
 
